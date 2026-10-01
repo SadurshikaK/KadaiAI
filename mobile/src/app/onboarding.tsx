@@ -7,26 +7,29 @@ import {
   StatusBar,
   Pressable,
 } from 'react-native';
+import { router } from 'expo-router';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function OnboardingScreen() {
+  const { t } = useLanguage();
   const features = [
     {
       id: 'sales',
       icon: '🛒',
-      title: 'Sales',
-      description: 'Record sales quickly',
+      title: t('onboarding.sales'),
+      description: t('onboarding.salesDescription'),
     },
     {
       id: 'stock',
       icon: '📦',
-      title: 'Stock',
-      description: 'Know what is running low',
+      title: t('onboarding.stock'),
+      description: t('onboarding.stockDescription'),
     },
     {
       id: 'voice',
       icon: '🎤',
-      title: 'Voice',
-      description: 'Use Tamil, Sinhala or English voice input',
+      title: t('onboarding.voice'),
+      description: t('onboarding.voiceDescription'),
     },
   ];
 
@@ -41,7 +44,7 @@ export default function OnboardingScreen() {
             <Text style={styles.logoEmoji}>🏪</Text>
             <Text style={styles.appName}>KadaiAI</Text>
           </View>
-          <Text style={styles.heading}>Manage your shop more easily</Text>
+          <Text style={styles.heading}>{t('onboarding.heading')}</Text>
         </View>
 
         {/* Features Section */}
@@ -62,12 +65,13 @@ export default function OnboardingScreen() {
         {/* Footer Section */}
         <View style={styles.footer}>
           <Pressable
+            onPress={() => router.push('/home')}
             style={({ pressed }) => [
               styles.startButton,
               pressed && styles.startButtonPressed,
             ]}
           >
-            <Text style={styles.startButtonText}>Get Started</Text>
+            <Text style={styles.startButtonText}>{t('onboarding.getStarted')}</Text>
           </Pressable>
         </View>
 

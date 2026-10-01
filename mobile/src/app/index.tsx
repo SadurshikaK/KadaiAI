@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
+import { useLanguage } from '../context/LanguageContext';
 import {
   Pressable,
   SafeAreaView,
@@ -13,6 +14,7 @@ import {
 type Language = 'Tamil' | 'Sinhala' | 'English';
 
 export default function LanguageScreen() {
+  const { setLanguage, t } = useLanguage();
   const [selectedLanguage, setSelectedLanguage] =
     useState<Language | null>(null);
 
@@ -56,9 +58,9 @@ export default function LanguageScreen() {
         {/* Selection Section */}
         <View style={styles.selectionSection}>
           <View style={styles.headingContainer}>
-            <Text style={styles.heading}>Choose your language</Text>
+            <Text style={styles.heading}>{t('language.choose')}</Text>
             <Text style={styles.description}>
-              You can change this later in settings
+              {t('language.description')}
             </Text>
           </View>
 
@@ -74,7 +76,10 @@ export default function LanguageScreen() {
                     isSelected && styles.selectedLanguageCard,
                     pressed && !isSelected && styles.languageCardPressed,
                   ]}
-                  onPress={() => setSelectedLanguage(language.name)}
+                  onPress={() => {
+                    setSelectedLanguage(language.name);
+                    setLanguage(language.name);
+                  }}
                 >
                   <View style={styles.languageInfo}>
                     <View
@@ -143,14 +148,14 @@ export default function LanguageScreen() {
                 !selectedLanguage && styles.disabledButtonText
               ]}
             >
-              Continue
+              {t('language.continue')}
             </Text>
           </Pressable>
 
           <View style={styles.voiceNoteContainer}>
             <Text style={styles.voiceNoteIcon}>🎤</Text>
             <Text style={styles.voiceNoteText}>
-              Voice assistance will also be available
+              {t('language.voiceHint')}
             </Text>
           </View>
         </View>
