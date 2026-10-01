@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { router } from 'expo-router';
 import {
   Pressable,
   SafeAreaView,
@@ -15,21 +16,24 @@ export default function LanguageScreen() {
   const [selectedLanguage, setSelectedLanguage] =
     useState<Language | null>(null);
 
-  const languages: { name: Language; label: string; subtitle: string }[] = [
+  const languages: { name: Language; label: string; subtitle: string; iconText: string }[] = [
     {
       name: 'Tamil',
       label: 'தமிழ்',
       subtitle: 'Tamil',
+      iconText: 'அ',
     },
     {
       name: 'Sinhala',
       label: 'සිංහල',
       subtitle: 'Sinhala',
+      iconText: 'අ',
     },
     {
       name: 'English',
       label: 'English',
       subtitle: 'English',
+      iconText: 'A',
     },
   ];
 
@@ -73,6 +77,21 @@ export default function LanguageScreen() {
                   onPress={() => setSelectedLanguage(language.name)}
                 >
                   <View style={styles.languageInfo}>
+                    <View
+                      style={[
+                        styles.languageIconBox,
+                        isSelected && styles.selectedLanguageIconBox,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.languageIconText,
+                          isSelected && styles.selectedLanguageIconText,
+                        ]}
+                      >
+                        {language.iconText}
+                      </Text>
+                    </View>
                     <View style={styles.languageTextContainer}>
                       <Text
                         style={[
@@ -111,6 +130,7 @@ export default function LanguageScreen() {
         <View style={styles.footer}>
           <Pressable
             disabled={!selectedLanguage}
+            onPress={() => router.push('/onboarding')}
             style={({ pressed }) => [
               styles.continueButton,
               !selectedLanguage && styles.disabledButton,
@@ -247,6 +267,26 @@ const styles = StyleSheet.create({
   languageInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  languageIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#F0F4F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  selectedLanguageIconBox: {
+    backgroundColor: '#D1ECD8',
+  },
+  languageIconText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#8A9E92',
+  },
+  selectedLanguageIconText: {
+    color: '#157540',
   },
   languageTextContainer: {
     justifyContent: 'center',
