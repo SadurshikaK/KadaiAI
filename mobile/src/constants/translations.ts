@@ -29,7 +29,48 @@ export const translations = {
     'home.shoppingList': "SHOPPING LIST",
     'home.shoppingDescription': "See what you need to buy",
     'home.tapSpeak': "Tap to Speak",
-    'home.voiceDescription': "Record sales or ask about stock using your voice"
+    'home.voiceDescription': "Record sales or ask about stock using your voice",
+
+    // New additions for Real Data & Screens
+    'common.back': "Back",
+    'common.loading': "Loading...",
+    'common.confirm': "Confirm",
+    'common.cancel': "Cancel",
+    'common.search': "Search products...",
+    'common.unitPrice': "Unit Price",
+    'common.quantity': "Quantity",
+    'common.totalAmount': "Total Amount",
+    'common.inStock': "In Stock",
+    'common.products': "Products",
+
+    'sell.title': "Record Sale",
+    'sell.selectProduct': "Select a product to sell",
+    'sell.enterQuantity': "Enter sold quantity",
+    'sell.confirmTitle': "Confirm Sale",
+    'sell.confirmMsg': "Are you sure you want to record this sale?",
+    'sell.success': "Sale recorded successfully!",
+    'sell.insufficient': "Insufficient stock available.",
+
+    'stock.title': "Add Stock",
+    'stock.selectProduct': "Select product to replenish",
+    'stock.enterQuantity': "Quantity to add",
+    'stock.note': "Note (e.g. Supplier delivery)",
+    'stock.confirmTitle': "Confirm Stock Addition",
+    'stock.confirmMsg': "Add this quantity to inventory?",
+    'stock.success': "Stock updated successfully!",
+
+    'inventory.title': "Shop Inventory",
+    'inventory.lowStockBadge': "LOW STOCK",
+    'inventory.healthyBadge': "Healthy",
+    'inventory.empty': "No products found in inventory.",
+
+    'lowStock.title': "Low Stock Alert",
+    'lowStock.empty': "Great news! No products are currently low on stock.",
+
+    'shopping.title': "Shopping List",
+    'shopping.subtitle': "Suggested restocking items based on low inventory",
+    'shopping.suggested': "Suggested Order",
+    'shopping.empty': "All stock levels are adequate. No purchases needed right now."
   },
   Tamil: {
     'language.choose': "உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்",
@@ -59,7 +100,48 @@ export const translations = {
     'home.shoppingList': "கொள்முதல் பட்டியல்",
     'home.shoppingDescription': "என்ன வாங்க வேண்டும் என்பதைப் பார்க்கவும்",
     'home.tapSpeak': "பேச தட்டவும்",
-    'home.voiceDescription': "உங்கள் குரலைப் பயன்படுத்தி விற்பனையைப் பதிவு செய்யுங்கள் அல்லது இருப்பைப் பற்றி கேளுங்கள்"
+    'home.voiceDescription': "உங்கள் குரலைப் பயன்படுத்தி விற்பனையைப் பதிவு செய்யுங்கள் அல்லது இருப்பைப் பற்றி கேளுங்கள்",
+
+    // New additions for Real Data & Screens
+    'common.back': "பின்னே",
+    'common.loading': "ஏற்றுகிறது...",
+    'common.confirm': "உறுதி செய்",
+    'common.cancel': "ரத்து செய்",
+    'common.search': "பொருட்களைத் தேடுங்கள்...",
+    'common.unitPrice': "அலகு விலை",
+    'common.quantity': "அளவு",
+    'common.totalAmount': "மொத்த தொகை",
+    'common.inStock': "இருப்பில் உள்ளது",
+    'common.products': "பொருட்கள்",
+
+    'sell.title': "விற்பனையை பதிவு செய்",
+    'sell.selectProduct': "விற்க வேண்டிய பொருளைத் தேர்ந்தெடுக்கவும்",
+    'sell.enterQuantity': "விற்பனை அளவை உள்ளிடவும்",
+    'sell.confirmTitle': "விற்பனை உறுதிப்படுத்தல்",
+    'sell.confirmMsg': "இந்த விற்பனையை பதிவு செய்ய விரும்புகிறீர்களா?",
+    'sell.success': "விற்பனை வெற்றிகரமாக பதிவு செய்யப்பட்டது!",
+    'sell.insufficient': "போதுமான இருப்பு இல்லை.",
+
+    'stock.title': "இருப்பைச் சேர்க்கவும்",
+    'stock.selectProduct': "பொருளைத் தேர்ந்தெடுக்கவும்",
+    'stock.enterQuantity': "சேர்க்க வேண்டிய அளவு",
+    'stock.note': "குறிப்பு (எ.கா. விநியோகஸ்தர் விநியோகம்)",
+    'stock.confirmTitle': "இருப்பு சேர்த்தல் உறுதிப்படுத்தல்",
+    'stock.confirmMsg': "இந்த அளவை இருப்பில் சேர்க்க விரும்புகிறீர்களா?",
+    'stock.success': "இருப்பு வெற்றிகரமாக புதுப்பிக்கப்பட்டது!",
+
+    'inventory.title': "கடை இருப்பு",
+    'inventory.lowStockBadge': "குறைந்த இருப்பு",
+    'inventory.healthyBadge': "போதுமானது",
+    'inventory.empty': "இருப்பில் எந்தப் பொருட்களும் இல்லை.",
+
+    'lowStock.title': "குறைந்த இருப்பு எச்சரிக்கை",
+    'lowStock.empty': "அனைத்து பொருட்களும் போதுமான அளவில் உள்ளன.",
+
+    'shopping.title': "கொள்முதல் பட்டியல்",
+    'shopping.subtitle': "குறைந்த இருப்பின் அடிப்படையில் பரிந்துரைக்கப்பட்ட பொருட்கள்",
+    'shopping.suggested': "பரிந்துரைக்கப்பட்ட அளவு",
+    'shopping.empty': "தற்போது எந்த பொருட்களும் வாங்க வேண்டிய அவசியமில்லை."
   },
   Sinhala: {
     'language.choose': "ඔබගේ භාෂාව තෝරන්න",
@@ -89,7 +171,48 @@ export const translations = {
     'home.shoppingList': "මිලදී ගැනීම් ලැයිස්තුව",
     'home.shoppingDescription': "ඔබ මිලදී ගත යුතු දේ බලන්න",
     'home.tapSpeak': "කතා කිරීමට තට්ටු කරන්න",
-    'home.voiceDescription': "ඔබගේ හඬෙන් විකුණුම් සටහන් කරන්න හෝ තොගය ගැන අසන්න"
+    'home.voiceDescription': "ඔබගේ හඬෙන් විකුණුම් සටහන් කරන්න හෝ තොගය ගැන අසන්න",
+
+    // New additions for Real Data & Screens
+    'common.back': "ආපසු",
+    'common.loading': "පූරණය වෙමින් පවතී...",
+    'common.confirm': "තහවුරු කරන්න",
+    'common.cancel': "අවලංගු කරන්න",
+    'common.search': "නිෂ්පාදන සොයන්න...",
+    'common.unitPrice': "ඒකක මිල",
+    'common.quantity': "ප්‍රමාණය",
+    'common.totalAmount': "මුළු මුදල",
+    'common.inStock': "තොගයේ ඇත",
+    'common.products': "නිෂ්පාදන",
+
+    'sell.title': "විකිණීම සටහන් කරන්න",
+    'sell.selectProduct': "විකිණීමට නිෂ්පාදනයක් තෝරන්න",
+    'sell.enterQuantity': "විකිණූ ප්‍රමාණය ඇතුළත් කරන්න",
+    'sell.confirmTitle': "විකිණීම තහවුරු කරන්න",
+    'sell.confirmMsg': "මෙම විකිණීම සටහන් කිරීමට ඔබට විශ්වාසද?",
+    'sell.success': "විකිණීම සාර්ථකව සටහන් විය!",
+    'sell.insufficient': "ප්‍රමාණවත් තොගයක් නොමැත.",
+
+    'stock.title': "තොග එකතු කරන්න",
+    'stock.selectProduct': "නිෂ්පාදනයක් තෝරන්න",
+    'stock.enterQuantity': "එකතු කළ යුතු ප්‍රමාණය",
+    'stock.note': "සටහන (උදා: සැපයුම්කරු භාරදීම)",
+    'stock.confirmTitle': "තොග එකතු කිරීම තහවුරු කරන්න",
+    'stock.confirmMsg': "මෙම ප්‍රමාණය තොගයට එකතු කරන්නද?",
+    'stock.success': "තොගය සාර්ථකව යාවත්කාලීන විය!",
+
+    'inventory.title': "වෙළඳසැල් තොගය",
+    'inventory.lowStockBadge': "අඩු තොග",
+    'inventory.healthyBadge': "ප්‍රමාණවත්",
+    'inventory.empty': "තොගයේ නිෂ්පාදන කිසිවක් නැත.",
+
+    'lowStock.title': "අඩු තොග අනතුරු ඇඟවීම",
+    'lowStock.empty': "සියලුම නිෂ්පාදන ප්‍රමාණවත් මට්ටමක පවතී.",
+
+    'shopping.title': "මිලදී ගැනීම් ලැයිස්තුව",
+    'shopping.subtitle': "අඩු තොග මත පදනම්ව නිර්දේශිත මිලදී ගැනීම්",
+    'shopping.suggested': "නිර්දේශිත ප්‍රමාණය",
+    'shopping.empty': "දැනට මිලදී ගැනීමට අවශ්‍ය නිෂ්පාදන නොමැත."
   }
 };
 
