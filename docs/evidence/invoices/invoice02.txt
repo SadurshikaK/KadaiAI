@@ -1,0 +1,14 @@
+Northern Demo Wholesale
+SYNTHETIC OCR TEST INVOICE - NOT A REAL TRANSACTION
+Invoice No: INV-1002
+Date: 2026-10-06
+Supplier: Demo Wholesale Traders
+Customer: KadaiAI Demo Shop
+Item Qty Unit Price Amount
+Rice 8 250.00 2000.00
+Soap 6 180.00 1080.00
+Biscuits 10 100.00 1000.00
+Milk Powder 1 450.00 450.00
+Total 4530.00
+Payment: CASH
+Thank you.

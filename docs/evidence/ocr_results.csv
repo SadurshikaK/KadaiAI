@@ -1,0 +1,4 @@
+﻿case_id,language,precision_percent,recall_percent,f1_percent
+OCR01,eng,96.88,96.88,96.88
+OCR02,eng,98.44,98.44,98.44
+OCR03,eng,93.94,48.44,63.92

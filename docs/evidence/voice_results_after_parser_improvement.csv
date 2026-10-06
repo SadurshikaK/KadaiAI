@@ -1,0 +1,11 @@
+﻿case_id,language,spoken_command,transcript,expected_intent,expected_product,expected_quantity,actual_intent,actual_product,actual_quantity,confidence,stt_similarity,intent_pass,product_pass,quantity_pass,end_to_end_pass
+T01,Tamil,மூன்று பிஸ்கட் விற்றேன்,மூன்று பிஸ்கட் வித்தேன்,sale,Biscuits,3,sale,Biscuits,3,0.97,0.913,True,True,True,True
+T02,Tamil,இரண்டு சோப்பு விற்றேன்,ரெண்டு சோப்பு விட்டேன்,sale,Soap,2,sale,Soap,2,0.97,0.8636,True,True,True,True
+T03,Tamil,ஐந்து அரிசி விற்றேன்,அஞ்சு அரிசி வித்தன்,sale,Rice,5,sale,Rice,5,0.97,0.7179,True,True,True,True
+T04,Tamil,பத்து சோப்பு சேர்க்க,10 சோப்பு சேர்க்க,add_stock,Soap,10,add_stock,Soap,10,0.97,0.8108,True,True,True,True
+T05,Tamil,நான்கு பிஸ்கட் சேர்க்க,நாலு பிஸ்கட் சேர்க்க,add_stock,Biscuits,4,add_stock,Biscuits,4,0.97,0.9048,True,True,True,True
+T06,Tamil,ஆறு அரிசி சேர்க்க,ஆர் அரிசி சேர்க்க,add_stock,Rice,6,add_stock,Rice,6,0.97,0.8824,True,True,True,True
+T07,Tamil,பால் மா எத்தனை உள்ளது,பால்மா எத்தனை இருக்கு,query_stock,Milk Powder,,query_stock,Milk Powder,,0.94,0.7619,True,True,True,True
+T08,Tamil,பிஸ்கட் எத்தனை உள்ளது,பிஸ்கட் எத்தனை இருக்கு,query_stock,Biscuits,,query_stock,Biscuits,,0.97,0.7907,True,True,True,True
+T09,Tamil,சோப்பு இருப்பு எவ்வளவு,சோப்பு இருப்பு எவ்வளவு,query_stock,Soap,,query_stock,Soap,,0.97,1.0,True,True,True,True
+T10,Tamil,அரிசி எவ்வளவு மீதம்,அரசு எவ்வளவு வீதம்,query_stock,Rice,,query_stock,Rice,,0.85,0.8649,True,True,True,True

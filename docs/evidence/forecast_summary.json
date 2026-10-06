@@ -1,0 +1,7 @@
+{
+  "products_total": 4,
+  "products_evaluated": 0,
+  "mean_moving_average_mae": null,
+  "mean_random_forest_mae": null,
+  "note": "If no product has sufficient real history, report insufficient history instead of inventing accuracy."
+}

@@ -131,6 +131,7 @@ NUMBER_WORDS = {
     "அஞ்சு": 5,
 
     "ஆறு": 6,
+    "ஆர்": 6,
     "ஏழு": 7,
     "எட்டு": 8,
     "ஒன்பது": 9,
@@ -171,14 +172,23 @@ NUMBER_WORDS = {
 
 
 SALE_WORDS = [
+    # English
     "sold",
     "sell",
     "sale",
 
+    # Tamil - expected forms
     "விற்றேன்",
     "விற்ற",
     "விற்பனை",
 
+    # Tamil - real STT variations observed during testing
+    "வித்தேன்",
+    "விட்டேன்",
+    "வித்தன்",
+    "விட்டன்",
+
+    # Sinhala
     "විකුණුවා",
     "විකුණන්න",
     "විකිණීම",

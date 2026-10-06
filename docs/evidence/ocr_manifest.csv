@@ -1,0 +1,4 @@
+case_id,image_path,language,ground_truth_path
+OCR01,docs/evidence/invoices/invoice01.jpg,eng,docs/evidence/invoices/invoice01.txt
+OCR02,docs/evidence/invoices/invoice02.jpg,eng,docs/evidence/invoices/invoice02.txt
+OCR03,docs/evidence/invoices/invoice03.jpg,eng,docs/evidence/invoices/invoice03.txt

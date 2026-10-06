@@ -1,0 +1,4 @@
+﻿budget,estimated_spend,remaining_budget,items,budget_pass,remaining_pass,quantity_pass,all_pass
+5000,1440.0,3560.0,1,True,True,True,True
+10000,1440.0,8560.0,1,True,True,True,True
+20000,1440.0,18560.0,1,True,True,True,True
