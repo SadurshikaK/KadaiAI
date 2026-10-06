@@ -132,6 +132,7 @@ NUMBER_WORDS = {
 
     "ஆறு": 6,
     "ஆர்": 6,
+
     "ஏழு": 7,
     "எட்டு": 8,
     "ஒன்பது": 9,
@@ -192,6 +193,7 @@ SALE_WORDS = [
     "විකුණුවා",
     "විකුණන්න",
     "විකිණීම",
+    "ගියා",
 ]
 
 
@@ -211,6 +213,8 @@ ADD_WORDS = [
     "එකතු",
     "එකතු කරන්න",
     "ගත්තා",
+    "restock",
+    "දාන්න",
 ]
 
 
@@ -232,6 +236,14 @@ QUERY_WORDS = [
     "තොග",
     "ඉතිරි",
     "තියෙනවා",
+    "කීයද",
+    "කීයක්",
+    "තියෙනවද",
+    "කොච්චර",
+    "කොච්චරද",
+    "ඉතිරි",
+    "ඉතුරුද",
+    "තොග",
 ]
 
 
@@ -280,12 +292,11 @@ def contains_any(
 
 def detect_intent(text: str):
 
-    # Query first because a phrase may also contain "stock".
     if contains_any(
         text,
-        QUERY_WORDS,
+        SALE_WORDS,
     ):
-        return "query_stock", 0.95
+        return "sale", 0.95
 
     if contains_any(
         text,
@@ -295,9 +306,9 @@ def detect_intent(text: str):
 
     if contains_any(
         text,
-        SALE_WORDS,
+        QUERY_WORDS,
     ):
-        return "sale", 0.95
+        return "query_stock", 0.95
 
     return "unknown", 0.20
 
@@ -444,6 +455,8 @@ def parse_command(
     quantity = extract_quantity(
         text
     )
+    if intent == "query_stock":
+        quantity = None
 
     products = (
         db.query(Product)

@@ -19,13 +19,13 @@ T07,Tamil,பால் மா எத்தனை உள்ளது,பால்
 T08,Tamil,பிஸ்கட் எத்தனை உள்ளது,பிஸ்கட் எத்தனை இருக்கு,query_stock,Biscuits,
 T09,Tamil,சோப்பு இருப்பு எவ்வளவு,சோப்பு இருப்பு எவ்வளவு,query_stock,Soap,
 T10,Tamil,அரிசி எவ்வளவு மீதம்,அரசு எவ்வளவு வீதம்,query_stock,Rice,
-S01,Sinhala,බිස්කට් තුනක් විකුණුවා,,sale,Biscuits,3
-S02,Sinhala,සබන් දෙකක් විකුණුවා,,sale,Soap,2
-S03,Sinhala,හාල් පහක් විකුණුවා,,sale,Rice,5
-S04,Sinhala,සබන් දහයක් එකතු කරන්න,,add_stock,Soap,10
-S05,Sinhala,බිස්කට් හතරක් එකතු කරන්න,,add_stock,Biscuits,4
-S06,Sinhala,හාල් හයක් එකතු කරන්න,,add_stock,Rice,6
-S07,Sinhala,කිරි පිටි කීයද,,query_stock,Milk Powder,
-S08,Sinhala,බිස්කට් කීයද,,query_stock,Biscuits,
-S09,Sinhala,සබන් තොග කීයද,,query_stock,Soap,
-S10,Sinhala,හාල් ඉතිරි කීයද,,query_stock,Rice,
+S01,Sinhala,බිස්කට් තුනක් ගියා,බිස්කට් තුනක් ගියා,sale,Biscuits,3
+S02,Sinhala,සබන් දෙකක් ගියා,සබන් දෙකක් ගියා,sale,Soap,2
+S03,Sinhala,හාල් පහක් විකුණුවා,හාල් පහක් විකුණුවා,sale,Rice,5
+S04,Sinhala,සබන් දහයක් දාන්න,සබන් දහයක් දාන්න,add_stock,Soap,10
+S05,Sinhala,බිස්කට් හතරක් දාන්න,බිස්කට් හතරක් දාන්න,add_stock,Biscuits,4
+S06,Sinhala,හාල් හයක් දාන්න,හාල් හයක් දාන්න,add_stock,Rice,6
+S07,Sinhala,කිරිපිටි කොච්චර තියෙනවද?,කිරිපිටි කොච්චර තියෙනවද?,query_stock,Milk Powder,
+S08,Sinhala,බිස්කට් කීයක් තියෙනවද?,බිස්කට් කීයක් තියෙනවද?,query_stock,Biscuits,
+S09,Sinhala,සබන් ස්ටොක් එක කොච්චරද?,සබන් ස්ටොක් එක කොච්චරද?,query_stock,Soap,
+S10,Sinhala,හාල් කොච්චර ඉතුරුද?,හාල් කොච්චර ඉතුරුද?,query_stock,Rice,
