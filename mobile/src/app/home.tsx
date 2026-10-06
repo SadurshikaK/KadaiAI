@@ -205,7 +205,7 @@ export default function HomeScreen() {
         <View style={styles.voiceSection}>
           <Pressable
             style={({ pressed }) => [styles.voiceButton, pressed && styles.voiceButtonPressed]}
-            onPress={() => router.push('/inventory')}
+            onPress={() => router.push('/voice')}
           >
             <Text style={styles.voiceIcon}>🎤</Text>
           </Pressable>
