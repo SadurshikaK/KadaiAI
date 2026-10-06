@@ -184,3 +184,6 @@ htmlcov/
 *.db
 *.sqlite3
 
+
+# Local Tesseract language data
+backend/tessdata/

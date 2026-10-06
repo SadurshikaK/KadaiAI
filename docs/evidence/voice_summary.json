@@ -1,0 +1,7 @@
+{
+  "total_tested": 30,
+  "intent_accuracy_percent": 93.33,
+  "product_accuracy_percent": 100.0,
+  "quantity_accuracy_percent": 96.67,
+  "end_to_end_parser_accuracy_percent": 93.33
+}

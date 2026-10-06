@@ -1,0 +1,5 @@
+﻿product,history_days,status,moving_average_mae,random_forest_mae,better_model
+Milk Powder,1,INSUFFICIENT_HISTORY,,,
+Biscuits,1,INSUFFICIENT_HISTORY,,,
+Soap,0,INSUFFICIENT_HISTORY,,,
+Rice,0,INSUFFICIENT_HISTORY,,,

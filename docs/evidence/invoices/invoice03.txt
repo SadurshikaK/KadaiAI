@@ -1,0 +1,14 @@
+Retail Test Distributors
+SYNTHETIC OCR TEST INVOICE - NOT A REAL TRANSACTION
+Invoice No: INV-1003
+Date: 2026-10-06
+Supplier: Demo Wholesale Traders
+Customer: KadaiAI Demo Shop
+Item Qty Unit Price Amount
+Biscuits 12 100.00 1200.00
+Milk Powder 3 450.00 1350.00
+Rice 5 250.00 1250.00
+Soap 2 180.00 360.00
+Total 4160.00
+Payment: CASH
+Thank you.

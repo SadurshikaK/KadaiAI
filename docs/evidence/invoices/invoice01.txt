@@ -1,0 +1,14 @@
+KadaiAI Demo Supplier
+SYNTHETIC OCR TEST INVOICE - NOT A REAL TRANSACTION
+Invoice No: INV-1001
+Date: 2026-10-06
+Supplier: Demo Wholesale Traders
+Customer: KadaiAI Demo Shop
+Item Qty Unit Price Amount
+Milk Powder 2 450.00 900.00
+Biscuits 5 100.00 500.00
+Soap 3 180.00 540.00
+Rice 4 250.00 1000.00
+Total 2940.00
+Payment: CASH
+Thank you.

@@ -1,0 +1,7 @@
+{
+  "total_tested": 10,
+  "intent_accuracy_percent": 100.0,
+  "product_accuracy_percent": 100.0,
+  "quantity_accuracy_percent": 100.0,
+  "end_to_end_parser_accuracy_percent": 100.0
+}
