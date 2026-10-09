@@ -15,6 +15,18 @@ import { router, useFocusEffect } from 'expo-router';
 import { useLanguage } from '../context/LanguageContext';
 import { getLowStockProducts, LowStockProduct } from '../services/api';
 
+const getProductIcon = (name: string, category: string) => {
+  const searchStr = `${name} ${category}`.toLowerCase();
+  if (searchStr.includes('milk') || searchStr.includes('powder')) return '🥛';
+  if (searchStr.includes('soap')) return '🧼';
+  if (searchStr.includes('biscuit') || searchStr.includes('cookie')) return '🍪';
+  if (searchStr.includes('book') || searchStr.includes('stationery')) return '📘';
+  if (searchStr.includes('rice')) return '🍚';
+  if (searchStr.includes('oil')) return '🫗';
+  if (searchStr.includes('drink') || searchStr.includes('juice')) return '🧃';
+  return '📦';
+};
+
 export default function ShoppingListScreen() {
   const { t } = useLanguage();
   const [items, setItems] = useState<LowStockProduct[]>([]);
@@ -29,7 +41,8 @@ export default function ShoppingListScreen() {
       const data = await getLowStockProducts(1);
       setItems(data);
     } catch (err: any) {
-      setError(err.message || 'Could not load shopping list');
+      console.error('Failed to load shopping list:', err);
+      setError('error');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -68,18 +81,14 @@ export default function ShoppingListScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>← {t('common.back')}</Text>
+          <Text style={styles.backButtonText}>←</Text>
         </Pressable>
-        <Text style={styles.title}>{t('shopping.title')}</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.title}>{t('shopping.title')}</Text>
+          <Text style={styles.subtitle}>{t('shopping.items_to_restock')}</Text>
+        </View>
         <View style={{ width: 40 }} />
       </View>
-
-      {/* Error Alert */}
-      {error && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>⚠️ {error}</Text>
-        </View>
-      )}
 
       {loading && !refreshing ? (
         <View style={styles.centerContainer}>
@@ -99,85 +108,106 @@ export default function ShoppingListScreen() {
             />
           }
         >
-          {/* Budget Overview Card */}
-          {shoppingItems.length > 0 && (
-            <View style={styles.budgetCard}>
-              <View style={styles.budgetRow}>
-                <View>
-                  <Text style={styles.budgetLabel}>Estimated Restock Budget</Text>
-                  <Text style={styles.budgetAmount}>
-                    Rs. {Math.round(totalEstimatedBudget).toLocaleString()}
-                  </Text>
-                </View>
-                <View style={styles.itemCountBadge}>
-                  <Text style={styles.itemCountText}>{shoppingItems.length} Items</Text>
-                </View>
-              </View>
-              <Text style={styles.budgetSubtitle}>
-                Calculated automatically from your low inventory thresholds.
-              </Text>
-            </View>
-          )}
-
-          {shoppingItems.length === 0 ? (
+          {error ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📝</Text>
-              <Text style={styles.emptyTitle}>No Purchases Needed</Text>
-              <Text style={styles.emptySubtitle}>{t('shopping.empty')}</Text>
+              <View style={[styles.emptyIconContainer, { backgroundColor: '#FDEDEC' }]}>
+                <Text style={[styles.emptyIcon, { color: '#C0392B' }]}>⚠</Text>
+              </View>
+              <Text style={styles.emptyTitle}>{t('shopping.error_title')}</Text>
+              <Text style={styles.emptySubtitle}>{t('shopping.error_subtitle')}</Text>
               <Pressable
                 style={styles.inventoryBtn}
-                onPress={() => router.push('/inventory')}
+                onPress={() => loadList(true)}
               >
-                <Text style={styles.inventoryBtnText}>Check All Products</Text>
+                <Text style={styles.inventoryBtnText}>{t('shopping.try_again')}</Text>
               </Pressable>
             </View>
           ) : (
             <>
-              <Text style={styles.sectionHeading}>Suggested Restock Items</Text>
-              <View style={styles.itemsList}>
-                {shoppingItems.map((item) => (
-                  <View key={item.id} style={styles.itemCard}>
-                    <View style={styles.itemTopRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.itemName}>{item.name}</Text>
-                        <Text style={styles.itemCategory}>{item.category}</Text>
-                      </View>
-                      <View style={styles.orderBadge}>
-                        <Text style={styles.orderBadgeLabel}>Buy</Text>
-                        <Text style={styles.orderBadgeValue}>+{item.suggestedQty}</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.itemMetaRow}>
-                      <Text style={styles.metaText}>
-                        Current Stock: <Text style={{ fontWeight: '700' }}>{item.quantity}</Text> (Min {item.low_stock_threshold})
-                      </Text>
-                      <Text style={styles.metaText}>
-                        Est. Cost: <Text style={{ fontWeight: '700' }}>Rs. {Math.round(item.estimatedTotal)}</Text>
+              {/* Budget Overview Card */}
+              {shoppingItems.length > 0 && (
+                <View style={styles.budgetCard}>
+                  <View style={styles.budgetRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.budgetLabel}>{t('shopping.budget_title')}</Text>
+                      <Text style={styles.budgetAmount}>
+                        Rs. {Math.round(totalEstimatedBudget).toLocaleString()}
                       </Text>
                     </View>
-
-                    <Pressable
-                      style={({ pressed }) => [styles.quickAddBtn, pressed && styles.btnPressed]}
-                      onPress={() => router.push(`/add-stock?product_id=${item.id}`)}
-                    >
-                      <Text style={styles.quickAddText}>📦 Restock {item.name}</Text>
-                    </Pressable>
+                    <View style={styles.itemCountBadge}>
+                      <Text style={styles.itemCountText}>
+                        {shoppingItems.length} {shoppingItems.length === 1 ? t('shopping.product_attention') : t('shopping.products_attention')}
+                      </Text>
+                    </View>
                   </View>
-                ))}
-              </View>
-
-              {/* Member 3 AI Future Feature Callout */}
-              <View style={styles.aiForecastBox}>
-                <Text style={styles.aiIcon}>🤖</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.aiTitle}>Member 3 AI Restock Forecast</Text>
-                  <Text style={styles.aiSubtitle}>
-                    Smart demand prediction and automated wholesale pricing will be integrated here.
+                  <Text style={styles.budgetSubtitle}>
+                    {t('shopping.budget_note')}
                   </Text>
                 </View>
-              </View>
-            </>
+              )}
+
+              {shoppingItems.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <View style={styles.emptyIconContainer}>
+                    <Text style={styles.emptyIcon}>✓</Text>
+                  </View>
+              <Text style={styles.emptyTitle}>{t('shopping.empty_title')}</Text>
+              <Text style={styles.emptySubtitle}>{t('shopping.empty_subtitle')}</Text>
+              <Pressable
+                style={styles.inventoryBtn}
+                onPress={() => router.push('/inventory')}
+              >
+                <Text style={styles.inventoryBtnText}>{t('shopping.view_inventory')}</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.itemsList}>
+              {shoppingItems.map((item) => (
+                <View key={item.id} style={styles.itemCard}>
+                  <View style={styles.itemHeader}>
+                    <View style={styles.iconContainer}>
+                      <Text style={styles.productIcon}>{getProductIcon(item.name, item.category)}</Text>
+                    </View>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemName}>{item.name}</Text>
+                      <Text style={styles.itemCategory}>{item.category}</Text>
+                    </View>
+                    <View style={styles.lowStockBadge}>
+                      <Text style={styles.lowStockBadgeText}>⚠ {t('shopping.low_stock')}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.stockGrid}>
+                    <View style={styles.stockColumn}>
+                      <Text style={styles.stockLabel}>{t('shopping.current') || 'Current'}</Text>
+                      <Text style={styles.stockValue}>{item.quantity}</Text>
+                    </View>
+                    <View style={styles.stockColumn}>
+                      <Text style={styles.stockLabel}>{t('shopping.minimum') || 'Minimum'}</Text>
+                      <Text style={styles.stockValue}>{item.low_stock_threshold}</Text>
+                    </View>
+                    <View style={[styles.stockColumn, styles.suggestedColumn]}>
+                      <Text style={styles.suggestedLabel}>{t('shopping.suggested_buy') || 'Suggested Buy'}</Text>
+                      <Text style={styles.suggestedValue}>+{item.suggestedQty}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.costRow}>
+                    <Text style={styles.costLabel}>{t('shopping.estimated_cost')}</Text>
+                    <Text style={styles.costValue}>Rs. {Math.round(item.estimatedTotal).toLocaleString()}</Text>
+                  </View>
+
+                  <Pressable
+                    style={({ pressed }) => [styles.quickAddBtn, pressed && styles.btnPressed]}
+                    onPress={() => router.push(`/add-stock?product_id=${item.id}`)}
+                  >
+                    <Text style={styles.quickAddText}>📦 {t('shopping.add_stock')}</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+          </>
           )}
         </ScrollView>
       )}
@@ -206,14 +236,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   backButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 24,
     color: '#0F3D26',
+  },
+  headerTitleContainer: {
+    alignItems: 'center',
   },
   title: {
     fontSize: 20,
     fontWeight: '800',
     color: '#0F3D26',
+  },
+  subtitle: {
+    fontSize: 12,
+    color: '#6B8276',
+    marginTop: 2,
   },
   content: {
     padding: 20,
@@ -256,8 +293,8 @@ const styles = StyleSheet.create({
   budgetRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
+    alignItems: 'center',
+    marginBottom: 12,
   },
   budgetLabel: {
     color: '#A2D4B6',
@@ -274,28 +311,25 @@ const styles = StyleSheet.create({
   itemCountBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 12,
+    marginLeft: 10,
   },
   itemCountText: {
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 13,
+    textAlign: 'center',
   },
   budgetSubtitle: {
     color: '#D1E8DB',
     fontSize: 12,
     lineHeight: 16,
+    fontStyle: 'italic',
   },
 
-  sectionHeading: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2A3F34',
-    marginBottom: 12,
-  },
   itemsList: {
-    gap: 12,
+    gap: 16,
     marginBottom: 24,
   },
   itemCard: {
@@ -310,11 +344,25 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
-  itemTopRow: {
+  itemHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 16,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#F4F9F6',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  productIcon: {
+    fontSize: 24,
+  },
+  itemInfo: {
+    flex: 1,
   },
   itemName: {
     fontSize: 17,
@@ -323,78 +371,99 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   itemCategory: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#6B8276',
   },
-  orderBadge: {
-    backgroundColor: '#FDECC8',
+  lowStockBadge: {
+    backgroundColor: '#FFF4E5',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 10,
-    alignItems: 'center',
+    borderRadius: 8,
+    marginLeft: 8,
   },
-  orderBadgeLabel: {
-    fontSize: 10,
+  lowStockBadgeText: {
+    fontSize: 11,
     fontWeight: '700',
-    color: '#8A5D0F',
+    color: '#B76E00',
+  },
+
+  stockGrid: {
+    flexDirection: 'row',
+    backgroundColor: '#F8FAF9',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  stockColumn: {
+    flex: 1,
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#E8F0EA',
+  },
+  suggestedColumn: {
+    borderRightWidth: 0,
+    backgroundColor: '#EAF7EE',
+    borderRadius: 8,
+    marginVertical: -6,
+    paddingVertical: 6,
+  },
+  stockLabel: {
+    fontSize: 11,
+    color: '#6B8276',
+    marginBottom: 4,
     textTransform: 'uppercase',
+    fontWeight: '600',
   },
-  orderBadgeValue: {
-    fontSize: 15,
+  stockValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A2E24',
+  },
+  suggestedLabel: {
+    fontSize: 11,
+    color: '#1B7A42',
+    marginBottom: 4,
+    textTransform: 'uppercase',
     fontWeight: '800',
-    color: '#8A5D0F',
   },
-  itemMetaRow: {
+  suggestedValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1B7A42',
+  },
+
+  costRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAF9',
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4,
   },
-  metaText: {
-    fontSize: 13,
+  costLabel: {
+    fontSize: 14,
     color: '#444444',
+    fontWeight: '500',
   },
+  costValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F3D26',
+  },
+
   quickAddBtn: {
     backgroundColor: '#22A05B',
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: 'center',
   },
   quickAddText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 15,
   },
   btnPressed: {
     opacity: 0.85,
     transform: [{ scale: 0.98 }],
-  },
-
-  aiForecastBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0F9F4',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#D4EFE0',
-  },
-  aiIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  aiTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F3D26',
-    marginBottom: 2,
-  },
-  aiSubtitle: {
-    fontSize: 12,
-    color: '#4E735D',
-    lineHeight: 16,
   },
 
   emptyContainer: {
@@ -402,31 +471,45 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     paddingHorizontal: 20,
   },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A2E24',
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#6B8276',
-    textAlign: 'center',
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#EAF7EE',
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 20,
   },
+  emptyIcon: {
+    fontSize: 40,
+    color: '#22A05B',
+    fontWeight: 'bold',
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1A2E24',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 15,
+    color: '#6B8276',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 22,
+  },
   inventoryBtn: {
-    backgroundColor: '#EAF7EE',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    backgroundColor: '#22A05B',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
     borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
   },
   inventoryBtnText: {
-    color: '#1B7A42',
+    color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 16,
   },
 });
