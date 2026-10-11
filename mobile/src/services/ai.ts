@@ -1,5 +1,5 @@
 import { API_BASE_URL } from './api';
-
+import { Platform } from 'react-native';
 
 export type AIIntent =
   | 'sale'
@@ -7,203 +7,176 @@ export type AIIntent =
   | 'query_stock'
   | 'unknown';
 
-
 export interface ParsedCommand {
-
   intent: AIIntent;
-
   product_id?: number | null;
-
   product_name?: string | null;
-
   quantity?: number | null;
-
   current_stock?: number | null;
-
   confidence: number;
-
   needs_confirmation: boolean;
-
   raw_text: string;
-
   message: string;
 }
 
-
 export interface RecommendationItem {
-
   product_id: number;
-
   product_name: string;
-
   current_stock: number;
-
   forecast_demand: number;
-
   safety_stock: number;
-
   required_quantity: number;
-
   recommended_quantity: number;
-
   unit_cost: number;
-
   estimated_cost: number;
-
   reason: string;
 }
 
-
 export interface RecommendationResponse {
-
   budget: number;
-
   horizon_days: number;
-
   estimated_spend: number;
-
   remaining_budget: number;
-
   items: RecommendationItem[];
 }
 
-
-export interface InvoiceResult {
-
-  language: string;
-
-  raw_text: string;
-
-  lines: string[];
-
-  candidate_lines: string[];
-
-  note: string;
+export interface InvoiceDetectedItem {
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  source_line: string;
+  confidence: number;
 }
 
+export interface InvoiceResult {
+  language: string;
+  shop_id: number;
+  raw_text: string;
+  lines: string[];
+  candidate_lines: string[];
+  detected_items: InvoiceDetectedItem[];
+  note: string;
+}
 
 async function getError(
   response: Response
 ) {
-
   try {
-
-    const data =
-      await response.json();
+    const data = await response.json();
 
     return (
-      data.message
-      || data.detail
-      || `HTTP ${response.status}`
+      data.message ||
+      data.detail ||
+      `HTTP ${response.status}`
     );
-
   } catch {
-
     return `HTTP ${response.status}`;
-
   }
-
 }
-
 
 export async function parseVoiceCommand(
   text: string,
   shopId: number = 1
 ): Promise<ParsedCommand> {
-
   const response = await fetch(
     `${API_BASE_URL}/api/ai/parse-command`,
     {
       method: 'POST',
-
       headers: {
-        'Content-Type':
-          'application/json'
+        'Content-Type': 'application/json',
       },
-
       body: JSON.stringify({
         text,
-        shop_id: shopId
-      })
+        shop_id: shopId,
+      }),
     }
   );
 
   if (!response.ok) {
-
     throw new Error(
       await getError(response)
     );
-
   }
 
   return response.json();
-
 }
-
 
 export async function getRecommendations(
   budget: number,
   shopId: number = 1
 ): Promise<RecommendationResponse> {
-
   const response = await fetch(
-
     `${API_BASE_URL}/api/ai/recommendations`
-    + `?budget=${budget}`
-    + `&shop_id=${shopId}`
-    + `&horizon_days=7`
-
+      + `?budget=${budget}`
+      + `&shop_id=${shopId}`
+      + `&horizon_days=7`
   );
 
   if (!response.ok) {
-
     throw new Error(
       await getError(response)
     );
-
   }
 
   return response.json();
-
 }
-
 
 export async function scanInvoice(
   uri: string,
-  language: string
+  language: string,
+  shopId: number = 1
 ): Promise<InvoiceResult> {
+  const formData = new FormData();
 
-  const formData =
-    new FormData();
+  if (Platform.OS === 'web') {
+    const imageResponse = await fetch(uri);
 
-  formData.append(
-    'file',
-    {
-      uri,
-      name: 'invoice.jpg',
-      type: 'image/jpeg'
-    } as any
-  );
+    if (!imageResponse.ok) {
+      throw new Error(
+        'Unable to read the selected invoice image.'
+      );
+    }
+
+    const blob = await imageResponse.blob();
+
+    const extension =
+      blob.type === 'image/png'
+        ? 'png'
+        : blob.type === 'image/webp'
+          ? 'webp'
+          : 'jpg';
+
+    formData.append(
+      'file',
+      blob,
+      `invoice.${extension}`
+    );
+  } else {
+    formData.append(
+      'file',
+      {
+        uri,
+        name: 'invoice.jpg',
+        type: 'image/jpeg',
+      } as any
+    );
+  }
 
   const response = await fetch(
-
     `${API_BASE_URL}/api/ai/invoice-ocr`
-    + `?language=${language}`,
-
+      + `?language=${encodeURIComponent(language)}`
+      + `&shop_id=${shopId}`,
     {
       method: 'POST',
-      body: formData
+      body: formData,
     }
   );
 
   if (!response.ok) {
-
     throw new Error(
       await getError(response)
     );
-
   }
 
   return response.json();
-
 }
