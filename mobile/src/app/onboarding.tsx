@@ -1,5 +1,6 @@
 import {
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -36,8 +37,11 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F4F9F6" />
-      <View style={styles.content}>
-        
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.logoRow}>
@@ -74,8 +78,7 @@ export default function OnboardingScreen() {
             <Text style={styles.startButtonText}>{t('onboarding.getStarted')}</Text>
           </Pressable>
         </View>
-
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -85,21 +88,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F4F9F6',
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
-    justifyContent: 'space-between',
-    paddingBottom: Platform.OS === 'ios' ? 10 : 30,
+    paddingTop: Platform.OS === 'ios' ? 16 : 20,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 48,
   },
   
   // Header Styles
   header: {
-    marginTop: Platform.OS === 'ios' ? 20 : 40,
+    marginTop: Platform.OS === 'ios' ? 16 : 20,
   },
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   logoEmoji: {
     fontSize: 24,
@@ -112,24 +115,23 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   heading: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: '800',
     color: '#1A2E24',
-    lineHeight: 40,
+    lineHeight: 38,
   },
 
   // Features Section Styles
   featuresContainer: {
-    flex: 1,
-    marginTop: 40,
-    gap: 16,
+    marginTop: 28,
+    gap: 14,
   },
   featureCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 22,
+    padding: 18,
     borderWidth: 1,
     borderColor: '#E8F0EA',
     shadowColor: '#000',
@@ -139,42 +141,41 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   iconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     backgroundColor: '#F0F9F4',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
   },
   iconText: {
-    fontSize: 28,
+    fontSize: 26,
   },
   featureTextContainer: {
     flex: 1,
   },
   featureTitle: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '700',
     color: '#2A3F34',
     marginBottom: 4,
   },
   featureDescription: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#6B8276',
     fontWeight: '400',
-    lineHeight: 22,
+    lineHeight: 20,
   },
 
   // Footer Styles
   footer: {
-    marginTop: 'auto',
-    paddingTop: 20,
+    marginTop: 28,
   },
   startButton: {
     backgroundColor: '#22A05B',
     borderRadius: 20,
-    height: 64,
+    height: 60,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#22A05B',

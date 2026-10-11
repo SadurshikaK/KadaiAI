@@ -4,6 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import {
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -42,8 +43,11 @@ export default function LanguageScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F4F9F6" />
-      <View style={styles.content}>
-        
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
@@ -159,8 +163,7 @@ export default function LanguageScreen() {
             </Text>
           </View>
         </View>
-
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -170,17 +173,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F4F9F6', // Soft light green/gray background
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
-    justifyContent: 'space-between',
-    paddingBottom: Platform.OS === 'ios' ? 10 : 30,
+    paddingTop: Platform.OS === 'ios' ? 16 : 20,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 48,
   },
   
   // Header Styles
   header: {
     alignItems: 'center',
-    marginTop: Platform.OS === 'ios' ? 40 : 60,
+    marginTop: Platform.OS === 'ios' ? 16 : 20,
   },
   logoContainer: {
     shadowColor: '#1B5E20',
@@ -188,12 +191,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 8,
-    marginBottom: 20,
+    marginBottom: 14,
   },
   logoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 32,
+    width: 88,
+    height: 88,
+    borderRadius: 28,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -201,53 +204,52 @@ const styles = StyleSheet.create({
     borderColor: '#E8F3EB',
   },
   logoEmoji: {
-    fontSize: 48,
+    fontSize: 44,
   },
   appName: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '800',
     color: '#0F3D26',
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#5C806B',
-    marginTop: 6,
+    marginTop: 4,
     fontWeight: '500',
   },
 
   // Selection Section Styles
   selectionSection: {
-    flex: 1,
-    marginTop: 40,
+    marginTop: 26,
   },
   headingContainer: {
-    marginBottom: 24,
+    marginBottom: 18,
     alignItems: 'flex-start',
   },
   heading: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '700',
     color: '#1A2E24',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   description: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#6B8276',
     fontWeight: '400',
   },
   
   languageContainer: {
-    gap: 16,
+    gap: 12,
   },
   languageCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 2,
     borderColor: '#E8F0EA',
     shadowColor: '#000',
@@ -274,19 +276,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   languageIconBox: {
-    width: 48,
-    height: 48,
+    width: 46,
+    height: 46,
     borderRadius: 14,
     backgroundColor: '#F0F4F2',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: 14,
   },
   selectedLanguageIconBox: {
     backgroundColor: '#D1ECD8',
   },
   languageIconText: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: '#8A9E92',
   },
@@ -297,16 +299,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   languageLabel: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     color: '#2A3F34',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   selectedLanguageText: {
     color: '#157540',
   },
   languageSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#8A9E92',
     fontWeight: '500',
   },
@@ -315,9 +317,9 @@ const styles = StyleSheet.create({
   },
   
   radioOuter: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     borderWidth: 2,
     borderColor: '#D0DCD5',
     alignItems: 'center',
@@ -329,21 +331,20 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   radioInner: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: '#22A05B',
   },
 
   // Footer Styles
   footer: {
-    marginTop: 'auto',
-    paddingTop: 20,
+    marginTop: 28,
   },
   continueButton: {
     backgroundColor: '#22A05B',
     borderRadius: 20,
-    height: 64,
+    height: 60,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#22A05B',
@@ -374,7 +375,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 24,
+    marginTop: 18,
     gap: 8,
   },
   voiceNoteIcon: {
