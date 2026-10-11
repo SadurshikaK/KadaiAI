@@ -1343,14 +1343,24 @@ def recommendations(
 )
 async def invoice_ocr(
     file: UploadFile = File(...),
-
-    language: str = Query(
-        "eng"
+    language: str = Query("eng"),
+    shop_id: int = Query(
+        1,
+        gt=0,
     ),
+    db: Session = Depends(get_db),
 ):
+    """
+    Extract text from a supplier invoice and suggest known
+    inventory products and quantities.
+
+    IMPORTANT:
+    This endpoint does not modify stock.
+    Detected items must be manually reviewed and confirmed
+    by the user before the stock-add API is called.
+    """
 
     try:
-
         from PIL import (
             Image,
             ImageEnhance,
@@ -1360,7 +1370,6 @@ async def invoice_ocr(
         import pytesseract
 
     except ImportError:
-
         raise HTTPException(
             status_code=500,
             detail=(
@@ -1377,17 +1386,18 @@ async def invoice_ocr(
         "eng+tam+sin",
     }
 
-    if (
-        language
-        not in allowed_languages
-    ):
-
+    if language not in allowed_languages:
         language = "eng"
 
     content = await file.read()
 
-    try:
+    if not content:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded invoice is empty.",
+        )
 
+    try:
         image = (
             Image.open(
                 BytesIO(content)
@@ -1395,10 +1405,8 @@ async def invoice_ocr(
             .convert("L")
         )
 
-        image = (
-            ImageOps.autocontrast(
-                image
-            )
+        image = ImageOps.autocontrast(
+            image
         )
 
         image = (
@@ -1415,11 +1423,7 @@ async def invoice_ocr(
             )
         )
 
-    except (
-        pytesseract
-        .TesseractNotFoundError
-    ):
-
+    except pytesseract.TesseractNotFoundError:
         raise HTTPException(
             status_code=503,
             detail=(
@@ -1429,7 +1433,6 @@ async def invoice_ocr(
         )
 
     except Exception as e:
-
         raise HTTPException(
             status_code=400,
             detail=str(e),
@@ -1437,28 +1440,93 @@ async def invoice_ocr(
 
     lines = [
         line.strip()
-
-        for line
-        in text.splitlines()
-
+        for line in text.splitlines()
         if line.strip()
     ]
 
     candidate_lines = [
         line
-
-        for line
-        in lines
-
+        for line in lines
         if re.search(
             r"\d",
             line,
         )
     ]
 
+    products = (
+        db.query(Product)
+        .filter(
+            Product.shop_id == shop_id
+        )
+        .all()
+    )
+
+    detected_items = []
+
+    seen_product_ids = set()
+
+    for line in candidate_lines:
+        normalized_line = normalize(
+            line
+        )
+
+        product, score = find_product(
+            normalized_line,
+            products,
+        )
+
+        quantity = extract_quantity(
+            normalized_line
+        )
+
+        if not product:
+            continue
+
+        # OCR product matching uses a stricter threshold
+        # than normal voice parsing.
+        if score < 80:
+            continue
+
+        if not quantity:
+            continue
+
+        if product.id in seen_product_ids:
+            continue
+
+        detected_items.append(
+            {
+                "product_id":
+                    product.id,
+
+                "product_name":
+                    product.name,
+
+                "quantity":
+                    quantity,
+
+                "source_line":
+                    line,
+
+                # This is PRODUCT MATCH confidence,
+                # not calibrated OCR confidence.
+                "confidence":
+                    round(
+                        score / 100,
+                        2,
+                    ),
+            }
+        )
+
+        seen_product_ids.add(
+            product.id
+        )
+
     return {
         "language":
             language,
+
+        "shop_id":
+            shop_id,
 
         "raw_text":
             text.strip(),
@@ -1469,9 +1537,13 @@ async def invoice_ocr(
         "candidate_lines":
             candidate_lines,
 
+        "detected_items":
+            detected_items,
+
         "note":
             (
-                "OCR result must be manually "
-                "confirmed before updating inventory."
+                "Detected products and quantities "
+                "are suggestions only. Review and "
+                "confirm them before updating inventory."
             ),
     }
