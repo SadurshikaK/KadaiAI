@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useLanguage } from '../context/LanguageContext';
-import { getProducts, searchProducts, seedDemoData, Product } from '../services/api';
+import { getProducts, searchProducts, seedDemoData, resetDemoData, type Product } from '../services/api';
 
 export default function InventoryScreen() {
   const { t } = useLanguage();
@@ -24,8 +24,11 @@ export default function InventoryScreen() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState<boolean>(false);
+  const [resetting, setResetting] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
-  const loadProducts = async (query: string = '', isManualRefresh: boolean = false) => {
+  const loadProducts = useCallback(async (query: string = '', isManualRefresh: boolean = false): Promise<boolean> => {
     try {
       if (isManualRefresh) setRefreshing(true);
       setError(null);
@@ -36,27 +39,29 @@ export default function InventoryScreen() {
         data = await getProducts(1);
       }
       setProducts(data);
+      return true;
     } catch (err: any) {
       setError(err.message || 'Could not load products');
+      return false;
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadProducts(searchQuery, false);
-    }, [searchQuery])
+      void loadProducts(searchQuery, false);
+    }, [loadProducts, searchQuery])
   );
 
   const onRefresh = () => {
-    loadProducts(searchQuery, true);
+    void loadProducts(searchQuery, true);
   };
 
   const handleSearch = (text: string) => {
-    setSearchQuery(text);
-    loadProducts(text, false);
+    setSearchQuery(text); // Focus effect performs the search (avoid two calls).
+    setResetMessage(null);
   };
 
   const handleSeed = async () => {
@@ -68,6 +73,30 @@ export default function InventoryScreen() {
       setError(err.message || 'Failed to seed sample data');
     } finally {
       setSeeding(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (resetting) return;
+
+    try {
+      setResetting(true);
+      setError(null);
+      setResetMessage(null);
+
+      const response = await resetDemoData(1); // Called only after confirming below.
+      setShowResetConfirm(false);
+      setSearchQuery('');
+      const reloaded = await loadProducts('', true);
+      if (reloaded) {
+        setResetMessage(response.message);
+      } else {
+        setResetMessage('Demo reset completed, but inventory could not refresh. Try again.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to reset demo');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -109,6 +138,53 @@ export default function InventoryScreen() {
         </View>
       )}
 
+      {/* Competition demo reset: requires human confirmation */}
+      <View style={styles.resetSection}>
+        <Pressable
+          style={({ pressed }) => [styles.resetButton, pressed && styles.buttonPressed]}
+          onPress={() => {
+            setResetMessage(null);
+            setShowResetConfirm(true);
+          }}
+          disabled={resetting || seeding || loading}
+          accessibilityRole="button"
+          accessibilityLabel="Reset Competition Demo"
+        >
+          <Text style={styles.resetButtonText}>Reset Competition Demo</Text>
+        </Pressable>
+
+        {showResetConfirm && (
+          <View style={styles.resetConfirmBox}>
+            <Text style={styles.resetWarning}>
+              This will delete demo sales and stock history for Shop 1 and
+              restore the sample inventory. Continue?
+            </Text>
+            <View style={styles.resetActions}>
+              <Pressable
+                style={styles.resetCancelButton}
+                onPress={() => setShowResetConfirm(false)}
+                disabled={resetting}
+                accessibilityRole="button"
+              >
+                <Text style={styles.resetCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.resetApplyButton}
+                onPress={handleReset}
+                disabled={resetting}
+                accessibilityRole="button"
+              >
+                <Text style={styles.resetApplyText}>
+                  {resetting ? 'Resetting...' : 'Confirm Reset'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {resetMessage && <Text style={styles.resetSuccess}>{resetMessage}</Text>}
+      </View>
+
       {/* Main Content */}
       {loading && !refreshing ? (
         <View style={styles.centerContainer}>
@@ -133,7 +209,7 @@ export default function InventoryScreen() {
               <Text style={styles.emptyIcon}>📦</Text>
               <Text style={styles.emptyTitle}>{t('inventory.empty')}</Text>
               <Text style={styles.emptySubtitle}>
-                Add your first product or populate demo products from Supabase.
+                Add your first product or load sample products into the demo inventory.
               </Text>
               <Pressable
                 style={({ pressed }) => [styles.seedButton, pressed && styles.buttonPressed]}
@@ -149,7 +225,13 @@ export default function InventoryScreen() {
             </View>
           ) : (
             products.map((item) => {
-              const isLowStock = item.quantity <= item.low_stock_threshold;
+              // Critical = out of stock; Low = at/below threshold; otherwise Healthy.
+              const stockState = item.quantity <= 0
+                ? 'CRITICAL'
+                : item.quantity <= item.low_stock_threshold
+                  ? 'LOW'
+                  : 'HEALTHY';
+              const isLowStock = stockState !== 'HEALTHY';
               return (
                 <View
                   key={item.id}
@@ -170,18 +252,28 @@ export default function InventoryScreen() {
                     <View
                       style={[
                         styles.stockBadge,
-                        isLowStock ? styles.stockBadgeLow : styles.stockBadgeHealthy,
+                        stockState === 'CRITICAL'
+                          ? styles.stockBadgeCritical
+                          : stockState === 'LOW'
+                            ? styles.stockBadgeLow
+                            : styles.stockBadgeHealthy,
                       ]}
                     >
                       <Text
                         style={[
                           styles.stockBadgeText,
-                          isLowStock ? styles.stockBadgeTextLow : styles.stockBadgeTextHealthy,
+                          stockState === 'CRITICAL'
+                            ? styles.stockBadgeTextCritical
+                            : stockState === 'LOW'
+                              ? styles.stockBadgeTextLow
+                              : styles.stockBadgeTextHealthy,
                         ]}
                       >
-                        {isLowStock
-                          ? `⚠️ ${t('inventory.lowStockBadge')}: ${item.quantity}`
-                          : `✓ ${t('inventory.healthyBadge')}: ${item.quantity}`}
+                        {stockState === 'CRITICAL'
+                          ? `⛔ CRITICAL: ${item.quantity}`
+                          : stockState === 'LOW'
+                            ? `⚠️ ${t('inventory.lowStockBadge')}: ${item.quantity}`
+                            : `✓ ${t('inventory.healthyBadge')}: ${item.quantity}`}
                       </Text>
                     </View>
                   </View>
@@ -369,9 +461,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 10,
+    maxWidth: '55%',
   },
   stockBadgeHealthy: {
     backgroundColor: '#EAF7EE',
+  },
+  stockBadgeCritical: {
+    backgroundColor: '#FDEDEC',
   },
   stockBadgeLow: {
     backgroundColor: '#FDECC8',
@@ -379,12 +475,16 @@ const styles = StyleSheet.create({
   stockBadgeText: {
     fontSize: 12,
     fontWeight: '700',
+    textAlign: 'center',
   },
   stockBadgeTextHealthy: {
     color: '#1B7A42',
   },
   stockBadgeTextLow: {
     color: '#8A5D0F',
+  },
+  stockBadgeTextCritical: {
+    color: '#B42318',
   },
 
   detailsRow: {
@@ -445,6 +545,80 @@ const styles = StyleSheet.create({
   buttonPressed: {
     opacity: 0.85,
     transform: [{ scale: 0.98 }],
+  },
+
+  // Competition demo reset
+  resetSection: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  resetButton: {
+    backgroundColor: '#FFF1F0',
+    borderColor: '#D9534F',
+    borderWidth: 1,
+    padding: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resetButtonText: {
+    color: '#B83D37',
+    fontWeight: '800',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  resetConfirmBox: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#F0C7C5',
+  },
+  resetWarning: {
+    color: '#813C35',
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  resetActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  resetCancelButton: {
+    flex: 1,
+    minHeight: 44,
+    padding: 12,
+    backgroundColor: '#E9EDEB',
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resetCancelText: {
+    color: '#1A2E24',
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  resetApplyButton: {
+    flex: 1,
+    minHeight: 44,
+    padding: 12,
+    backgroundColor: '#C63D36',
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resetApplyText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  resetSuccess: {
+    color: '#167A45',
+    marginTop: 10,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 
   // Empty State
