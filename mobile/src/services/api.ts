@@ -59,6 +59,8 @@ export interface LowStockProduct {
   selling_price: number;
 }
 
+
+
 export interface SaleCreatePayload {
   product_id: number;
   quantity: number;
@@ -120,6 +122,20 @@ export interface DashboardData {
 export interface LowStockCountResponse {
   count: number;
 }
+
+
+export interface DemoResetResponse {
+  status: string;
+  message: string;
+  shop_id: number;
+  deleted_sales: number;
+  deleted_stock_transactions: number;
+  restored_products: {
+    name: string;
+    quantity: number;
+  }[];
+}
+
 
 // ==========================================
 // Central Fetch Helper with Proper Error Handling
@@ -269,4 +285,17 @@ export async function seedDemoData(shopId: number = 1): Promise<{ status: string
   return apiFetch<{ status: string }>(`/api/seed?shop_id=${shopId}`, {
     method: 'POST',
   });
+}
+
+
+/** Reset competition demo data for the selected shop */
+export async function resetDemoData(
+  shopId: number = 1
+): Promise<DemoResetResponse> {
+  return apiFetch<DemoResetResponse>(
+    `/api/seed/reset?shop_id=${shopId}&confirm=true`,
+    {
+      method: 'POST',
+    }
+  );
 }

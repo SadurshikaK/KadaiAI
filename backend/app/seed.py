@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal, init_db
 from app.models.shop import Shop
 from app.models.product import Product
+from app.models.sale import Sale
 from app.models.stock_transaction import StockTransaction
 
 SAMPLE_PRODUCTS = [
@@ -95,6 +96,75 @@ def seed_database(db: Session, shop_id: int = 1) -> dict:
         "skipped_existing": skipped_count,
         "total_seed_items": len(SAMPLE_PRODUCTS)
     }
+
+def reset_demo_database(db: Session, shop_id: int = 1) -> dict:
+    """Reset the demo shop's sales history and sample stock quantities."""
+    try:
+        shop = db.query(Shop).filter(Shop.id == shop_id).first()
+
+        if not shop:
+            shop = Shop(id=shop_id, name="Kadai Main Shop")
+            db.add(shop)
+            db.flush()
+
+        deleted_sales = (
+            db.query(Sale)
+            .filter(Sale.shop_id == shop_id)
+            .delete(synchronize_session=False)
+        )
+
+        deleted_transactions = (
+            db.query(StockTransaction)
+            .filter(StockTransaction.shop_id == shop_id)
+            .delete(synchronize_session=False)
+        )
+
+        restored_products = []
+
+        for item in SAMPLE_PRODUCTS:
+            product = (
+                db.query(Product)
+                .filter(
+                    Product.shop_id == shop_id,
+                    Product.name == item["name"]
+                )
+                .first()
+            )
+
+            if product:
+                product.quantity = item["quantity"]
+            else:
+                product = Product(
+                    shop_id=shop_id,
+                    name=item["name"],
+                    category=item["category"],
+                    barcode=item.get("barcode"),
+                    selling_price=item["selling_price"],
+                    cost_price=item.get("cost_price"),
+                    quantity=item["quantity"],
+                    low_stock_threshold=item["low_stock_threshold"]
+                )
+                db.add(product)
+
+            restored_products.append({
+                "name": item["name"],
+                "quantity": item["quantity"]
+            })
+
+        db.commit()
+
+        return {
+            "status": "success",
+            "message": "Competition demo reset successfully",
+            "shop_id": shop_id,
+            "deleted_sales": deleted_sales,
+            "deleted_stock_transactions": deleted_transactions,
+            "restored_products": restored_products
+        }
+
+    except Exception:
+        db.rollback()
+        raise
 
 
 if __name__ == "__main__":
