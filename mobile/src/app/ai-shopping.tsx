@@ -1,46 +1,51 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
-import { getRecommendations } from '../services/ai';
-import type { RecommendationItem, RecommendationResponse } from '../services/ai';
+import AIStatusStrip from '../components/ai-status-strip';
+import KadaiBottomNav from '../components/kadai-bottom-nav';
+import {
+  RecommendationItem,
+  RecommendationResponse,
+  getRecommendations,
+} from '../services/ai';
+import { KadaiColors, KadaiRadius, KadaiShadow } from '../constants/kadai-theme';
 
-/** Explain the actual stock target and budget allocation returned by the backend. */
-function explainRecommendation(
-  item: RecommendationItem,
-  horizonDays: number
-): string {
-  const targetStock = item.current_stock + item.required_quantity;
+function money(value: number) {
+  return `Rs. ${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+function explainRecommendation(item: RecommendationItem, horizonDays: number) {
+  const target = item.current_stock + item.required_quantity;
   const coldStart = item.reason.toLowerCase().includes('cold-start');
 
-  const stockExplanation = coldStart
-    ? `There is not enough sales history to forecast this product. ` +
-      `KadaiAI uses its low-stock threshold to set a target of ${targetStock} units. `
-    : `Forecast demand for the next ${horizonDays} days is ` +
-      `${item.forecast_demand.toFixed(1)} units. ` +
-      `With ${item.safety_stock} safety-stock units, ` +
-      `the target is ${targetStock} units. `;
+  const first = coldStart
+    ? `There is not enough sales history yet, so KadaiAI falls back to the product's stock threshold and targets ${target} units.`
+    : `Expected demand for the next ${horizonDays} days is ${item.forecast_demand.toFixed(1)} units. With ${item.safety_stock} safety-stock units, the target is ${target}.`;
 
-  const shortageExplanation =
-    `Current stock is ${item.current_stock}, so ` +
-    `${item.required_quantity} more units are needed. `;
+  const second = ` Current stock is ${item.current_stock}, creating a calculated shortage of ${item.required_quantity}.`;
+  const third = item.recommended_quantity < item.required_quantity
+    ? ` Your budget can fund ${item.recommended_quantity} of the ${item.required_quantity} required units.`
+    : ' The recommendation covers the calculated shortage.';
 
-  const budgetExplanation =
-    item.recommended_quantity < item.required_quantity
-      ? `The available purchasing budget covers ${item.recommended_quantity} ` +
-        `of those ${item.required_quantity} units.`
-      : `The suggested purchase covers this calculated shortage.`;
+  return first + second + third;
+}
 
-  return stockExplanation + shortageExplanation + budgetExplanation;
+function priorityScore(item: RecommendationItem) {
+  const target = Math.max(1, item.current_stock + item.required_quantity);
+  const shortageRatio = item.required_quantity / target;
+  const safetyRisk = item.current_stock <= item.safety_stock ? 20 : 0;
+  return Math.min(100, Math.round(45 + shortageRatio * 40 + safetyRisk));
 }
 
 export default function AIShoppingScreen() {
@@ -48,27 +53,27 @@ export default function AIShoppingScreen() {
   const [result, setResult] = useState<RecommendationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<number | null>(null);
 
-  const generateRecommendations = async () => {
-    const budgetValue = Number(budget);
+  const budgetValue = Number(budget);
+  const spendProgress = useMemo(() => {
+    if (!result || result.budget <= 0) return 0;
+    return Math.min(1, result.estimated_spend / result.budget);
+  }, [result]);
 
-    if (budget.trim() === '' || !Number.isFinite(budgetValue) || budgetValue < 0) {
-      setError('Please enter a valid, non-negative purchasing budget.');
+  const generate = async () => {
+    if (!budget.trim() || !Number.isFinite(budgetValue) || budgetValue < 0) {
+      setError('Enter a valid non-negative purchasing budget.');
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      setResult(null);
-      const response = await getRecommendations(budgetValue, 1);
-      setResult(response);
-    } catch (err: unknown) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Unable to generate recommendations. Please try again.'
-      );
+      setExpanded(null);
+      setResult(await getRecommendations(budgetValue, 1));
+    } catch (err: any) {
+      setError(err?.message || 'Unable to generate a restock plan.');
     } finally {
       setLoading(false);
     }
@@ -76,373 +81,251 @@ export default function AIShoppingScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={KadaiColors.background} />
+
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Pressable onPress={() => router.back()}>
-          <Text style={styles.back}>‹ Back</Text>
-        </Pressable>
+        <View>
+          <Text style={styles.title}>Smart Restock</Text>
+          <Text style={styles.subtitle}>
+            Turn current stock, expected demand and your budget into an explainable purchase plan.
+          </Text>
+        </View>
 
-        <Text style={styles.title}>Smart Shopping List</Text>
-        <Text style={styles.subtitle}>
-          KadaiAI uses current stock, recent demand and your budget to suggest
-          what should be restocked.
-        </Text>
-
-        <Text style={styles.label}>Purchasing Budget (LKR)</Text>
-        <TextInput
-          style={styles.input}
-          value={budget}
-          onChangeText={(value) => {
-            setBudget(value);
-            setError(null);
-          }}
-          keyboardType="numeric"
-          placeholder="Example: 10000"
-          placeholderTextColor="#789083"
+        <AIStatusStrip
+          label="KadaiAI Insights"
+          status={loading ? 'Analyzing inventory' : 'Ready'}
+          busy={loading}
         />
 
-        <Pressable
-          style={[styles.generateButton, loading && styles.disabledButton]}
-          onPress={generateRecommendations}
-          disabled={loading}
-          accessibilityRole="button"
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.generateText}>Generate Recommendations</Text>
-          )}
-        </Pressable>
+        <View style={styles.budgetCard}>
+          <View style={styles.budgetHeader}>
+            <View>
+              <Text style={styles.eyebrow}>PURCHASING BUDGET</Text>
+              <Text style={styles.budgetHint}>How much can you spend today?</Text>
+            </View>
+            <View style={styles.walletIcon}>
+              <Ionicons name="wallet-outline" size={20} color={KadaiColors.primary} />
+            </View>
+          </View>
+
+          <View style={styles.inputRow}>
+            <Text style={styles.currency}>Rs.</Text>
+            <TextInput
+              style={styles.input}
+              value={budget}
+              onChangeText={(text) => {
+                setBudget(text);
+                setError(null);
+              }}
+              keyboardType="numeric"
+              placeholder="10000"
+              placeholderTextColor="#91A096"
+            />
+          </View>
+
+          <Pressable style={styles.generateButton} onPress={generate} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="sparkles" size={17} color="#FFFFFF" />
+                <Text style={styles.generateText}>Build smart restock plan</Text>
+              </>
+            )}
+          </Pressable>
+        </View>
 
         {error && (
           <View style={styles.errorCard}>
+            <Ionicons name="warning-outline" size={18} color={KadaiColors.redDark} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
 
         {result && (
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Recommendation Summary</Text>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Budget</Text>
-              <Text style={styles.summaryValue}>Rs. {result.budget.toFixed(2)}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Estimated Spend</Text>
-              <Text style={styles.summaryValue}>
-                Rs. {result.estimated_spend.toFixed(2)}
-              </Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Remaining Budget</Text>
-              <Text style={styles.summaryValue}>
-                Rs. {result.remaining_budget.toFixed(2)}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {result?.items.map((item) => {
-          const highPriority = item.current_stock <= item.safety_stock;
-
-          return (
-            <View key={item.product_id} style={styles.productCard}>
-              <Text style={styles.productName}>{item.product_name}</Text>
-
-              <View
-                style={[
-                  styles.priorityBadge,
-                  highPriority ? styles.priorityHigh : styles.priorityRestock,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.priorityText,
-                    highPriority
-                      ? styles.priorityHighText
-                      : styles.priorityRestockText,
-                  ]}
-                >
-                  {highPriority ? 'HIGH PRIORITY' : 'RESTOCK'}
-                </Text>
+          <>
+            <View style={styles.planHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>Recommended plan</Text>
+                <Text style={styles.sectionSub}>{result.items.length} products prioritized</Text>
               </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Current Stock</Text>
-                <Text style={styles.detailValue}>{item.current_stock}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Forecast Demand</Text>
-                <Text style={styles.detailValue}>
-                  {item.forecast_demand.toFixed(1)}
-                </Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Safety Stock</Text>
-                <Text style={styles.detailValue}>{item.safety_stock}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Required Quantity</Text>
-                <Text style={styles.detailValue}>{item.required_quantity}</Text>
-              </View>
-
-              <View style={styles.recommendBox}>
-                <Text style={styles.recommendLabel}>Suggested Purchase</Text>
-                <Text style={styles.recommendQuantity}>
-                  {item.recommended_quantity} units
-                </Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Estimated Cost</Text>
-                <Text style={styles.detailValue}>
-                  Rs. {item.estimated_cost.toFixed(2)}
-                </Text>
-              </View>
-
-              <Text style={styles.reason}>{item.reason}</Text>
-              <View style={styles.explanationBox}>
-                <Text style={styles.explanationTitle}>Why recommended?</Text>
-                <Text style={styles.explanationText}>
-                  {explainRecommendation(item, result.horizon_days)}
-                </Text>
+              <View style={styles.planBadge}>
+                <Text style={styles.planBadgeText}>{result.horizon_days} DAYS</Text>
               </View>
             </View>
-          );
-        })}
 
-        {result && result.items.length === 0 && (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>📦</Text>
-            <Text style={styles.emptyTitle}>No purchases recommended</Text>
-            <Text style={styles.emptyText}>
-              Either current stock is sufficient, or the budget is too low to
-              purchase the items that need restocking.
-            </Text>
-          </View>
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryTop}>
+                <SummaryValue label="Budget" value={money(result.budget)} />
+                <SummaryValue label="Recommended spend" value={money(result.estimated_spend)} />
+              </View>
+              <View style={styles.budgetTrack}>
+                <View style={[styles.budgetFill, { width: `${spendProgress * 100}%` }]} />
+              </View>
+              <View style={styles.remainingRow}>
+                <Text style={styles.remainingLabel}>Budget remaining</Text>
+                <Text style={styles.remainingValue}>{money(result.remaining_budget)}</Text>
+              </View>
+            </View>
+
+            {result.items.map((item) => {
+              const score = priorityScore(item);
+              const high = score >= 80;
+              const open = expanded === item.product_id;
+
+              return (
+                <View key={item.product_id} style={styles.productCard}>
+                  <View style={styles.productHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.productName}>{item.product_name}</Text>
+                      <Text style={styles.productSub}>Priority score {score}/100</Text>
+                    </View>
+                    <View style={[styles.priority, high ? styles.highPriority : styles.mediumPriority]}>
+                      <View style={[styles.priorityDot, { backgroundColor: high ? KadaiColors.red : KadaiColors.amber }]} />
+                      <Text style={[styles.priorityText, { color: high ? KadaiColors.redDark : '#9A6700' }]}>
+                        {high ? 'HIGH' : 'MEDIUM'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.statsRow}>
+                    <PlanStat label="Current" value={item.current_stock.toString()} />
+                    <PlanStat label="Demand" value={item.forecast_demand.toFixed(1)} />
+                    <PlanStat label="Safety" value={item.safety_stock.toString()} />
+                  </View>
+
+                  <View style={styles.buyBox}>
+                    <View>
+                      <Text style={styles.buyLabel}>BUY</Text>
+                      <Text style={styles.buyQuantity}>{item.recommended_quantity} units</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.costLabel}>Estimated cost</Text>
+                      <Text style={styles.costValue}>{money(item.estimated_cost)}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.reasonRow}>
+                    <Ionicons name="bulb-outline" size={18} color={KadaiColors.greenDark} />
+                    <Text style={styles.reason}>{item.reason}</Text>
+                  </View>
+
+                  <Pressable style={styles.whyButton} onPress={() => setExpanded(open ? null : item.product_id)}>
+                    <Text style={styles.whyText}>Why recommended?</Text>
+                    <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={17} color={KadaiColors.primary} />
+                  </Pressable>
+
+                  {open && (
+                    <View style={styles.explanation}>
+                      <Text style={styles.explanationText}>{explainRecommendation(item, result.horizon_days)}</Text>
+                      <Text style={styles.scoreNote}>
+                        Priority score is a transparent decision-support score derived from stock shortage and safety-stock risk.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+
+            {result.items.length === 0 && (
+              <View style={styles.emptyCard}>
+                <Ionicons name="checkmark-circle-outline" size={34} color={KadaiColors.greenDark} />
+                <Text style={styles.emptyTitle}>No purchases recommended</Text>
+                <Text style={styles.emptyText}>
+                  Current stock is sufficient, or the available budget cannot fund products that need restocking.
+                </Text>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
+
+      <KadaiBottomNav />
     </SafeAreaView>
   );
 }
 
+function SummaryValue({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ flex: 1 }}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={styles.summaryValue}>{value}</Text>
+    </View>
+  );
+}
+
+function PlanStat({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.planStat}>
+      <Text style={styles.planStatValue}>{value}</Text>
+      <Text style={styles.planStatLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F4F9F6',
-  },
-  content: {
-    padding: 24,
-    paddingBottom: 50,
-  },
-  back: {
-    color: '#1C8A4D',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#183D29',
-  },
-  subtitle: {
-    marginTop: 8,
-    color: '#66796D',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  label: {
-    marginTop: 28,
-    marginBottom: 8,
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#304A3B',
-  },
-  input: {
-    backgroundColor: '#FFFFFF',
-    padding: 15,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#DCE9E1',
-    fontSize: 16,
-  },
-  generateButton: {
-    backgroundColor: '#1C8A4D',
-    padding: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginTop: 14,
-  },
-  disabledButton: {
-    opacity: 0.65,
-  },
-  generateText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  errorCard: {
-    backgroundColor: '#FDEDEC',
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 12,
-  },
-  errorText: {
-    color: '#A52F25',
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  summaryCard: {
-    backgroundColor: '#DFF3E7',
-    padding: 18,
-    borderRadius: 16,
-    marginTop: 24,
-  },
-  summaryTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#1D4F32',
-    marginBottom: 10,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginTop: 6,
-  },
-  summaryLabel: {
-    color: '#557364',
-    flex: 1,
-    marginRight: 12,
-  },
-  summaryValue: {
-    color: '#1E5636',
-    fontWeight: '800',
-    textAlign: 'right',
-    flexShrink: 1,
-  },
-  productCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 18,
-    borderRadius: 16,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#DFEAE3',
-  },
-  productName: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: '#1C3E2B',
-    marginBottom: 8,
-  },
-  priorityBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  priorityHigh: {
-    backgroundColor: '#FDE8E7',
-  },
-  priorityRestock: {
-    backgroundColor: '#FFF1D6',
-  },
-  priorityText: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  priorityHighText: {
-    color: '#B42318',
-  },
-  priorityRestockText: {
-    color: '#925C0E',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginTop: 7,
-  },
-  detailLabel: {
-    color: '#6B7E73',
-    flex: 1,
-    marginRight: 12,
-  },
-  detailValue: {
-    color: '#2D4838',
-    fontWeight: '700',
-    textAlign: 'right',
-    flexShrink: 1,
-  },
-  recommendBox: {
-    backgroundColor: '#EDF8F1',
-    padding: 14,
-    borderRadius: 12,
-    marginTop: 14,
-    marginBottom: 8,
-  },
-  recommendLabel: {
-    color: '#528064',
-    fontSize: 13,
-  },
-  recommendQuantity: {
-    color: '#157540',
-    fontSize: 22,
-    fontWeight: '800',
-    marginTop: 3,
-  },
-  reason: {
-    color: '#21834C',
-    fontWeight: '600',
-    marginTop: 12,
-    lineHeight: 20,
-  },
-  explanationBox: {
-    marginTop: 14,
-    backgroundColor: '#F2F8F4',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#DCECE1',
-  },
-  explanationTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#185A35',
-    marginBottom: 6,
-  },
-  explanationText: {
-    fontSize: 13,
-    color: '#385745',
-    lineHeight: 20,
-  },
-  emptyCard: {
-    backgroundColor: '#FFFFFF',
-    marginTop: 20,
-    borderRadius: 16,
-    padding: 25,
-    alignItems: 'center',
-  },
-  emptyIcon: {
-    fontSize: 32,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#244633',
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  emptyText: {
-    color: '#6B7F72',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginTop: 5,
-  },
+  container: { flex: 1, backgroundColor: KadaiColors.background },
+  scroll: { flex: 1 },
+  content: { padding: 20, paddingBottom: 30, gap: 16 },
+  title: { fontSize: 27, fontWeight: '900', color: KadaiColors.text, letterSpacing: -0.5 },
+  subtitle: { fontSize: 13.5, color: KadaiColors.text2, lineHeight: 19, marginTop: 4 },
+  budgetCard: { backgroundColor: '#FFFFFF', borderRadius: KadaiRadius.xl, borderWidth: 1, borderColor: KadaiColors.border, padding: 17, ...KadaiShadow },
+  budgetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  eyebrow: { fontSize: 10.5, fontWeight: '900', color: KadaiColors.greenDark, letterSpacing: 1.1 },
+  budgetHint: { fontSize: 12, color: KadaiColors.text2, marginTop: 3 },
+  walletIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: KadaiColors.mintSoft, alignItems: 'center', justifyContent: 'center' },
+  inputRow: { marginTop: 15, minHeight: 54, borderRadius: 14, backgroundColor: KadaiColors.surfaceAlt, borderWidth: 1, borderColor: '#D7E4D9', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 },
+  currency: { fontSize: 16, fontWeight: '900', color: KadaiColors.primary, marginRight: 8 },
+  input: { flex: 1, fontSize: 22, fontWeight: '900', color: KadaiColors.text },
+  generateButton: { minHeight: 48, borderRadius: 13, marginTop: 12, backgroundColor: KadaiColors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  generateText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '900' },
+  errorCard: { backgroundColor: KadaiColors.redSoft, borderWidth: 1, borderColor: '#F5CACA', borderRadius: KadaiRadius.medium, padding: 12, flexDirection: 'row', gap: 8, alignItems: 'center' },
+  errorText: { flex: 1, color: KadaiColors.redDark, fontSize: 12.5 },
+  planHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { fontSize: 18, fontWeight: '900', color: KadaiColors.text },
+  sectionSub: { fontSize: 11.5, color: KadaiColors.text2, marginTop: 2 },
+  planBadge: { backgroundColor: KadaiColors.mint, paddingHorizontal: 10, paddingVertical: 6, borderRadius: KadaiRadius.pill },
+  planBadgeText: { color: KadaiColors.primary, fontSize: 9.5, fontWeight: '900', letterSpacing: 0.7 },
+  summaryCard: { backgroundColor: KadaiColors.primary, borderRadius: KadaiRadius.xl, padding: 18, ...KadaiShadow },
+  summaryTop: { flexDirection: 'row', gap: 14 },
+  summaryLabel: { color: '#BFDCC9', fontSize: 10.5, fontWeight: '700' },
+  summaryValue: { color: '#FFFFFF', fontSize: 17, fontWeight: '900', marginTop: 3 },
+  budgetTrack: { height: 7, borderRadius: 5, backgroundColor: '#2A6A44', overflow: 'hidden', marginTop: 17 },
+  budgetFill: { height: '100%', backgroundColor: '#86EFAC', borderRadius: 5 },
+  remainingRow: { marginTop: 10, flexDirection: 'row', justifyContent: 'space-between' },
+  remainingLabel: { color: '#BFDCC9', fontSize: 11.5 },
+  remainingValue: { color: '#A7F3D0', fontSize: 12, fontWeight: '900' },
+  productCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: KadaiColors.border, borderRadius: KadaiRadius.xl, padding: 17, ...KadaiShadow },
+  productHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  productName: { fontSize: 18, fontWeight: '900', color: KadaiColors.text },
+  productSub: { fontSize: 11.5, color: KadaiColors.muted, marginTop: 3 },
+  priority: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: KadaiRadius.pill, paddingHorizontal: 9, paddingVertical: 6 },
+  highPriority: { backgroundColor: KadaiColors.redSoft },
+  mediumPriority: { backgroundColor: KadaiColors.amberSoft },
+  priorityDot: { width: 7, height: 7, borderRadius: 4 },
+  priorityText: { fontSize: 9.5, fontWeight: '900' },
+  statsRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  planStat: { flex: 1, backgroundColor: KadaiColors.surfaceAlt, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
+  planStatValue: { fontSize: 16, fontWeight: '900', color: KadaiColors.text },
+  planStatLabel: { fontSize: 10, color: KadaiColors.muted, marginTop: 2, fontWeight: '600' },
+  buyBox: { marginTop: 13, borderRadius: 14, backgroundColor: KadaiColors.mintSoft, padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  buyLabel: { color: KadaiColors.greenDark, fontSize: 9.5, fontWeight: '900', letterSpacing: 1 },
+  buyQuantity: { color: KadaiColors.primary, fontSize: 22, fontWeight: '900', marginTop: 2 },
+  costLabel: { color: KadaiColors.text2, fontSize: 10.5 },
+  costValue: { color: KadaiColors.text, fontSize: 15, fontWeight: '900', marginTop: 2 },
+  reasonRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 14 },
+  reason: { flex: 1, color: KadaiColors.text2, fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  whyButton: { marginTop: 13, minHeight: 40, borderRadius: 11, borderWidth: 1, borderColor: '#CFE1D4', backgroundColor: '#F7FBF8', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
+  whyText: { color: KadaiColors.primary, fontSize: 12, fontWeight: '900' },
+  explanation: { marginTop: 10, backgroundColor: '#F8FAF8', borderRadius: 11, padding: 12 },
+  explanationText: { color: KadaiColors.text2, fontSize: 12, lineHeight: 18 },
+  scoreNote: { color: KadaiColors.muted, fontSize: 10.5, lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
+  emptyCard: { minHeight: 180, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: KadaiColors.border, borderRadius: KadaiRadius.large, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  emptyTitle: { fontSize: 16, fontWeight: '900', color: KadaiColors.text, marginTop: 9 },
+  emptyText: { fontSize: 12.5, color: KadaiColors.text2, textAlign: 'center', lineHeight: 18, marginTop: 4 },
 });

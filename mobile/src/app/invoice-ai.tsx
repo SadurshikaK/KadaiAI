@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -7,27 +7,21 @@ import {
   Pressable,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
-import {
-  useLanguage,
-} from '../context/LanguageContext';
-
-import {
-  addStock,
-} from '../services/api';
-
-import {
-  InvoiceDetectedItem,
-  InvoiceResult,
-  scanInvoice,
-} from '../services/ai';
+import AIStatusStrip from '../components/ai-status-strip';
+import KadaiBottomNav from '../components/kadai-bottom-nav';
+import { useLanguage } from '../context/LanguageContext';
+import { addStock } from '../services/api';
+import { InvoiceDetectedItem, InvoiceResult, scanInvoice } from '../services/ai';
+import { KadaiColors, KadaiRadius, KadaiShadow } from '../constants/kadai-theme';
 
 const ocrLanguageMap = {
   English: 'eng',
@@ -35,1001 +29,444 @@ const ocrLanguageMap = {
   Sinhala: 'eng+sin',
 } as const;
 
-type ReviewItem =
-  InvoiceDetectedItem & {
-    quantityText: string;
-  };
+type ReviewItem = InvoiceDetectedItem & { quantityText: string };
+
+function confidenceLabel(value: number) {
+  if (value >= 0.8) {
+    return { label: 'MATCHED', color: KadaiColors.greenDark, bg: KadaiColors.mintSoft };
+  }
+  return { label: 'NEEDS REVIEW', color: '#9A6700', bg: KadaiColors.amberSoft };
+}
 
 export default function InvoiceAIScreen() {
-  const { language } =
-    useLanguage();
+  const { language } = useLanguage();
 
-  const [imageUri, setImageUri] =
-    useState<string | null>(null);
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [result, setResult] = useState<InvoiceResult | null>(null);
+  const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
+  const [editableText, setEditableText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [addingStock, setAddingStock] = useState(false);
+  const [stockUpdated, setStockUpdated] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
-  const [result, setResult] =
-    useState<InvoiceResult | null>(null);
+  const step = stockUpdated ? 4 : result ? 3 : imageUri ? 2 : 1;
 
-  const [loading, setLoading] =
-    useState(false);
+  const reviewCount = useMemo(
+    () => reviewItems.filter((item) => item.confidence < 0.8).length,
+    [reviewItems]
+  );
 
-  const [editableText, setEditableText] =
-    useState('');
-
-  const [reviewItems, setReviewItems] =
-    useState<ReviewItem[]>([]);
-
-  const [addingStock, setAddingStock] =
-    useState(false);
-
-  const [stockUpdated, setStockUpdated] =
-    useState(false);
+  const otherLines = useMemo(() => {
+    if (!result) return [];
+    const matched = new Set(reviewItems.map((item) => item.source_line.trim().toLowerCase()));
+    return result.candidate_lines.filter((line) => !matched.has(line.trim().toLowerCase()));
+  }, [result, reviewItems]);
 
   const chooseInvoice = async () => {
     try {
-      const permission =
-        await ImagePicker
-          .requestMediaLibraryPermissionsAsync();
-
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(
-          'Permission required',
-          'Please allow photo access to select an invoice.'
-        );
-
+        Alert.alert('Permission required', 'Allow photo access to select a supplier invoice.');
         return;
       }
 
-      const selected =
-        await ImagePicker
-          .launchImageLibraryAsync({
-            allowsEditing: false,
-            quality: 0.9,
-          });
+      const selected = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: false,
+        quality: 0.9,
+      });
 
-      if (
-        !selected.canceled &&
-        selected.assets.length > 0
-      ) {
-        setImageUri(
-          selected.assets[0].uri
-        );
-
+      if (!selected.canceled && selected.assets.length > 0) {
+        setImageUri(selected.assets[0].uri);
         setResult(null);
-        setEditableText('');
         setReviewItems([]);
+        setEditableText('');
         setStockUpdated(false);
+        setShowDetails(false);
       }
-    } catch (error: any) {
-      Alert.alert(
-        'Image selection error',
-        error.message
-      );
+    } catch (err: any) {
+      Alert.alert('Image selection error', err?.message || 'Unable to select image.');
     }
   };
 
-  const extractInvoice = async () => {
-    if (!imageUri) {
-      Alert.alert(
-        'No invoice selected',
-        'Choose an invoice image first.'
-      );
-
-      return;
-    }
+  const extract = async () => {
+    if (!imageUri) return;
 
     try {
       setLoading(true);
       setStockUpdated(false);
-
-      const ocrLanguage =
-        ocrLanguageMap[language];
-
-      const response =
-        await scanInvoice(
-          imageUri,
-          ocrLanguage,
-          1
-        );
-
+      const response = await scanInvoice(imageUri, ocrLanguageMap[language], 1);
       setResult(response);
-
-      setEditableText(
-        response.raw_text
-      );
-
+      setEditableText(response.raw_text);
       setReviewItems(
-        (
-          response.detected_items || []
-        ).map(item => ({
+        (response.detected_items || []).map((item) => ({
           ...item,
-          quantityText:
-            String(item.quantity),
+          quantityText: String(item.quantity),
         }))
       );
-    } catch (error: any) {
-      Alert.alert(
-        'Invoice OCR failed',
-        error.message
-      );
+    } catch (err: any) {
+      Alert.alert('Invoice OCR failed', err?.message || 'Unable to scan invoice.');
     } finally {
       setLoading(false);
     }
   };
 
-  const updateQuantity = (
-    index: number,
-    text: string
-  ) => {
-    setReviewItems(
-      previous =>
-        previous.map(
-          (
-            item,
-            itemIndex
-          ) =>
-            itemIndex === index
-              ? {
-                  ...item,
-                  quantityText: text,
-                }
-              : item
-        )
+  const updateQuantity = (index: number, text: string) => {
+    setReviewItems((previous) =>
+      previous.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, quantityText: text } : item
+      )
     );
   };
 
   const performStockUpdate = async () => {
-  let completed = 0;
+    let completed = 0;
+    try {
+      setAddingStock(true);
+      for (const item of reviewItems) {
+        await addStock({
+          product_id: item.product_id,
+          quantity: Number(item.quantityText),
+          shop_id: 1,
+          note: 'Confirmed supplier invoice OCR',
+        });
+        completed += 1;
+      }
 
-  try {
-    setAddingStock(true);
-
-    for (const item of reviewItems) {
-      await addStock({
-        product_id: item.product_id,
-        quantity: Number(item.quantityText),
-        shop_id: 1,
-        note: 'Confirmed supplier invoice OCR',
-      });
-
-      completed += 1;
-    }
-
-    setStockUpdated(true);
-
-    Alert.alert(
-      'Inventory Updated',
-      `${completed} product(s) were added after manual confirmation.`
-    );
-  } catch (error: any) {
-    if (completed > 0) {
+      setStockUpdated(true);
+      Alert.alert('Inventory Updated', `${completed} reviewed product(s) were added to inventory.`);
+    } catch (err: any) {
       Alert.alert(
-        'Partially Updated',
-        `${completed} item(s) were updated before an error occurred. Please check inventory before retrying.`
+        completed > 0 ? 'Partially Updated' : 'Stock update failed',
+        completed > 0
+          ? `${completed} item(s) were updated before an error occurred. Check inventory before retrying.`
+          : err?.message || 'Unable to update inventory.'
       );
-    } else {
-      Alert.alert(
-        'Stock update failed',
-        error.message || 'Unable to update inventory.'
-      );
+    } finally {
+      setAddingStock(false);
     }
-  } finally {
-    setAddingStock(false);
-  }
-};
+  };
 
-const addDetectedItemsToStock = async () => {
-  if (reviewItems.length === 0) {
-    Alert.alert(
-      'Nothing to add',
-      'No inventory items were detected.'
-    );
-
-    return;
-  }
-
-  const invalid = reviewItems.some(item => {
-    const quantity = Number(item.quantityText);
-
-    return (
-      !Number.isInteger(quantity) ||
-      quantity <= 0
-    );
-  });
-
-  if (invalid) {
-    Alert.alert(
-      'Check quantities',
-      'Every item must have a positive whole-number quantity.'
-    );
-
-    return;
-  }
-
-  const message =
-    `Add ${reviewItems.length} reviewed product(s) to inventory?`;
-
-  if (Platform.OS === 'web') {
-    const confirmed = window.confirm(
-      `Confirm Inventory Update\n\n${message}`
-    );
-
-    if (confirmed) {
-      await performStockUpdate();
+  const confirmUpdate = async () => {
+    if (!reviewItems.length) {
+      Alert.alert('Nothing to add', 'No known inventory products were detected.');
+      return;
     }
 
-    return;
-  }
+    const invalid = reviewItems.some((item) => {
+      const quantity = Number(item.quantityText);
+      return !Number.isInteger(quantity) || quantity <= 0;
+    });
 
-  Alert.alert(
-    'Confirm Inventory Update',
-    message,
-    [
-      {
-        text: 'Cancel',
-        style: 'cancel',
-      },
-      {
-        text: 'Confirm',
-        onPress: performStockUpdate,
-      },
-    ]
-  );
-};
+    if (invalid) {
+      Alert.alert('Check quantities', 'Every item must have a positive whole-number quantity.');
+      return;
+    }
+
+    const message = `Add ${reviewItems.length} reviewed product(s) to inventory?`;
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Confirm Inventory Update\n\n${message}`)) {
+        await performStockUpdate();
+      }
+      return;
+    }
+
+    Alert.alert('Confirm Inventory Update', message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Confirm', onPress: () => void performStockUpdate() },
+    ]);
+  };
 
   return (
-    <SafeAreaView
-      style={styles.container}
-    >
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={KadaiColors.background} />
+
       <ScrollView
-        contentContainerStyle={
-          styles.content
-        }
-        showsVerticalScrollIndicator={
-          false
-        }
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable
-          onPress={() =>
-            router.back()
-          }
-        >
-          <Text style={styles.back}>
-            ‹ Back
+        <View>
+          <Text style={styles.title}>Invoice AI</Text>
+          <Text style={styles.subtitle}>
+            Scan → detect → review → update. KadaiAI never changes stock before you confirm.
           </Text>
-        </Pressable>
+        </View>
 
-        <Text style={styles.title}>
-          Invoice AI
-        </Text>
+        <AIStatusStrip
+          label="KadaiAI Vision"
+          status={loading ? 'Reading invoice' : stockUpdated ? 'Inventory updated' : 'Ready'}
+          busy={loading}
+        />
 
-        <Text style={styles.subtitle}>
-          Scan a supplier invoice.
-          KadaiAI extracts the text,
-          detects known products and
-          quantities, and asks you to
-          verify everything before
-          inventory changes.
-        </Text>
+        <Stepper current={step} />
 
-        <View
-          style={
-            styles.safetyBanner
-          }
-        >
-          <Text
-            style={
-              styles.safetyIcon
-            }
-          >
-            🛡️
-          </Text>
-
+        <View style={styles.safetyCard}>
+          <View style={styles.shield}>
+            <Ionicons name="shield-checkmark-outline" size={21} color={KadaiColors.primary} />
+          </View>
           <View style={{ flex: 1 }}>
-            <Text
-              style={
-                styles.safetyTitle
-              }
-            >
-              Human-controlled inventory
-            </Text>
-
-            <Text
-              style={
-                styles.safetyText
-              }
-            >
-              OCR suggestions never modify
-              stock automatically.
+            <Text style={styles.safetyTitle}>Human-controlled inventory</Text>
+            <Text style={styles.safetyText}>
+              OCR results are suggestions. Review products and quantities before any stock change.
             </Text>
           </View>
         </View>
 
-        <Pressable
-          style={styles.button}
-          onPress={chooseInvoice}
-        >
-          <Text
-            style={
-              styles.buttonIcon
-            }
-          >
-            📷
-          </Text>
-
-          <Text
-            style={
-              styles.buttonText
-            }
-          >
-            Choose Invoice Image
-          </Text>
+        <Pressable style={styles.uploadCard} onPress={chooseInvoice}>
+          <View style={styles.uploadIcon}>
+            <Ionicons name="image-outline" size={25} color={KadaiColors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.uploadTitle}>{imageUri ? 'Change invoice image' : 'Choose supplier invoice'}</Text>
+            <Text style={styles.uploadText}>Select a clear photo or screenshot</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={KadaiColors.muted} />
         </Pressable>
 
         {imageUri && (
-          <View
-            style={
-              styles.previewCard
-            }
-          >
-            <Image
-              source={{
-                uri: imageUri,
-              }}
-              style={styles.image}
-            />
-          </View>
-        )}
-
-        {imageUri && (
-          <Pressable
-            style={
-              styles.extractButton
-            }
-            onPress={
-              extractInvoice
-            }
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator
-                color="#FFFFFF"
-              />
-            ) : (
-              <Text
-                style={
-                  styles.extractText
-                }
-              >
-                Scan & Detect Items
-              </Text>
-            )}
-          </Pressable>
-        )}
-
-        {result && (
-          <View
-            style={
-              styles.warningBox
-            }
-          >
-            <Text
-              style={
-                styles.warningIcon
-              }
-            >
-              ⚠️
-            </Text>
-
-            <Text
-              style={
-                styles.warningText
-              }
-            >
-              {result.note}
-            </Text>
+          <View style={styles.previewCard}>
+            <Image source={{ uri: imageUri }} style={styles.preview} />
+            <Pressable style={styles.scanButton} onPress={extract} disabled={loading}>
+              {loading ? (
+                <>
+                  <ActivityIndicator color="#FFFFFF" />
+                  <Text style={styles.scanText}>Reading invoice…</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="scan-outline" size={18} color="#FFFFFF" />
+                  <Text style={styles.scanText}>{result ? 'Scan again' : 'Scan & detect items'}</Text>
+                </>
+              )}
+            </Pressable>
           </View>
         )}
 
         {result && (
           <>
-            <Text
-              style={
-                styles.heading
-              }
-            >
-              Detected Inventory Items
-            </Text>
+            <View style={styles.resultHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>Review detected items</Text>
+                <Text style={styles.sectionSub}>
+                  {reviewItems.length} matched product(s)
+                  {reviewCount ? ` • ${reviewCount} need review` : ' • all high-confidence matches'}
+                </Text>
+              </View>
+              <View style={styles.detectedBadge}>
+                <Ionicons name="checkmark-circle" size={16} color={KadaiColors.greenDark} />
+                <Text style={styles.detectedBadgeText}>SCANNED</Text>
+              </View>
+            </View>
 
-            <Text
-              style={
-                styles.reviewHint
-              }
-            >
-              Verify every product and
-              quantity before confirming.
-              Match confidence refers to
-              product matching, not OCR
-              certainty.
-            </Text>
+            {result.note ? (
+              <View style={styles.noteCard}>
+                <Ionicons name="information-circle-outline" size={18} color="#9A6700" />
+                <Text style={styles.noteText}>{result.note}</Text>
+              </View>
+            ) : null}
 
-            {reviewItems.length >
-            0 ? (
-              reviewItems.map(
-                (
-                  item,
-                  index
-                ) => (
-                  <View
-                    key={
-                      `${item.product_id}-${index}`
-                    }
-                    style={
-                      styles.detectedItemCard
-                    }
-                  >
-                    <View
-                      style={
-                        styles.detectedItemInfo
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.detectedItemName
-                        }
-                      >
-                        {
-                          item.product_name
-                        }
-                      </Text>
+            {reviewItems.length ? (
+              reviewItems.map((item, index) => {
+                const meta = confidenceLabel(item.confidence);
+                return (
+                  <View key={`${item.product_id}-${index}`} style={styles.itemCard}>
+                    <View style={styles.itemTop}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.itemName}>{item.product_name}</Text>
+                        <View style={[styles.matchBadge, { backgroundColor: meta.bg }]}>
+                          <Text style={[styles.matchBadgeText, { color: meta.color }]}>{meta.label}</Text>
+                        </View>
+                      </View>
 
-                      <Text
-                        style={
-                          styles.detectedSource
-                        }
-                        numberOfLines={2}
-                      >
-                        {
-                          item.source_line
-                        }
-                      </Text>
+                      <View style={styles.qtyBox}>
+                        <Text style={styles.qtyLabel}>QTY</Text>
+                        <TextInput
+                          value={item.quantityText}
+                          onChangeText={(text) => updateQuantity(index, text)}
+                          editable={!stockUpdated}
+                          keyboardType="number-pad"
+                          style={styles.qtyInput}
+                        />
+                      </View>
+                    </View>
 
-                      <Text
-                        style={
-                          styles.detectedConfidence
-                        }
-                      >
-                        Product match:{' '}
-                        {Math.round(
-                          item.confidence *
-                            100
-                        )}
-                        %
+                    <View style={styles.confidenceRow}>
+                      <Text style={styles.confidenceLabel}>Product match</Text>
+                      <Text style={[styles.confidenceValue, { color: meta.color }]}>
+                        {Math.round(item.confidence * 100)}%
                       </Text>
                     </View>
 
-                    <View
-                      style={
-                        styles.quantityArea
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.quantityLabel
-                        }
-                      >
-                        Qty
-                      </Text>
-
-                      <TextInput
-                        style={
-                          styles.quantityInput
-                        }
-                        keyboardType="number-pad"
-                        value={
-                          item.quantityText
-                        }
-                        onChangeText={text =>
-                          updateQuantity(
-                            index,
-                            text
-                          )
-                        }
-                        editable={
-                          !stockUpdated
-                        }
-                      />
+                    <View style={styles.sourceBox}>
+                      <Text style={styles.sourceLabel}>SOURCE LINE</Text>
+                      <Text style={styles.sourceText}>{item.source_line}</Text>
                     </View>
                   </View>
-                )
-              )
+                );
+              })
             ) : (
-              <View
-                style={
-                  styles.noLines
-                }
-              >
-                <Text
-                  style={
-                    styles.noLinesText
-                  }
-                >
-                  No known products with
-                  quantities were detected.
-                  Review the OCR text below.
-                </Text>
+              <View style={styles.emptyCard}>
+                <Ionicons name="search-outline" size={28} color={KadaiColors.muted} />
+                <Text style={styles.emptyTitle}>No known products detected</Text>
+                <Text style={styles.emptyText}>Review the OCR text below and try a clearer invoice if needed.</Text>
               </View>
             )}
 
-            {reviewItems.length >
-              0 && (
+            {!!otherLines.length && (
+              <View style={styles.otherCard}>
+                <Text style={styles.otherTitle}>Other OCR lines</Text>
+                <Text style={styles.otherHint}>
+                  These lines were read but were not linked to a known inventory product.
+                </Text>
+                {otherLines.slice(0, 5).map((line, index) => (
+                  <Text key={`${line}-${index}`} style={styles.otherLine}>• {line}</Text>
+                ))}
+              </View>
+            )}
+
+            {!!reviewItems.length && (
               <Pressable
-                style={[
-                  styles.addDetectedButton,
-                  stockUpdated &&
-                    styles.addDetectedButtonDisabled,
-                ]}
-                onPress={
-                  addDetectedItemsToStock
-                }
-                disabled={
-                  addingStock ||
-                  stockUpdated
-                }
+                style={[styles.confirmButton, stockUpdated && styles.confirmDone]}
+                onPress={confirmUpdate}
+                disabled={addingStock || stockUpdated}
               >
                 {addingStock ? (
-                  <ActivityIndicator
-                    color="#FFFFFF"
-                  />
+                  <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text
-                    style={
-                      styles.addDetectedText
-                    }
-                  >
-                    {stockUpdated
-                      ? '✓ Inventory Updated'
-                      : '✓ Confirm & Add to Inventory'}
-                  </Text>
+                  <>
+                    <Ionicons
+                      name={stockUpdated ? 'checkmark-circle' : 'shield-checkmark-outline'}
+                      size={19}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.confirmText}>
+                      {stockUpdated ? 'Inventory updated' : `Confirm ${reviewItems.length} item(s) & update stock`}
+                    </Text>
+                  </>
                 )}
               </Pressable>
             )}
-          </>
-        )}
 
-        {result && (
-          <>
-            <Text
-              style={
-                styles.heading
-              }
-            >
-              Detected OCR Lines
-            </Text>
+            <Pressable style={styles.detailsToggle} onPress={() => setShowDetails((v) => !v)}>
+              <Text style={styles.detailsToggleText}>OCR details</Text>
+              <Ionicons name={showDetails ? 'chevron-up' : 'chevron-down'} size={17} color={KadaiColors.primary} />
+            </Pressable>
 
-            {result
-              .candidate_lines
-              .length > 0 ? (
-              result.candidate_lines.map(
-                (
-                  line,
-                  index
-                ) => (
-                  <View
-                    key={
-                      `${index}-${line}`
-                    }
-                    style={
-                      styles.lineCard
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.lineNumber
-                      }
-                    >
-                      {index + 1}
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.lineText
-                      }
-                    >
-                      {line}
-                    </Text>
-                  </View>
-                )
-              )
-            ) : (
-              <View
-                style={
-                  styles.noLines
-                }
-              >
-                <Text
-                  style={
-                    styles.noLinesText
-                  }
-                >
-                  No probable product
-                  lines were detected.
-                </Text>
+            {showDetails && (
+              <View style={styles.detailsCard}>
+                <Text style={styles.detailsTitle}>Full OCR text</Text>
+                <Text style={styles.detailsHint}>Editing this review text does not directly change inventory.</Text>
+                <TextInput
+                  style={styles.rawInput}
+                  multiline
+                  value={editableText}
+                  onChangeText={setEditableText}
+                  placeholder="No readable text detected."
+                />
               </View>
             )}
           </>
         )}
-
-        {result && (
-          <>
-            <Text
-              style={
-                styles.heading
-              }
-            >
-              Full OCR Text
-            </Text>
-
-            <Text
-              style={
-                styles.rawHint
-              }
-            >
-              Review the complete OCR
-              output below. Editing this
-              text does not directly
-              update inventory.
-            </Text>
-
-            <TextInput
-              style={
-                styles.rawTextInput
-              }
-              multiline
-              value={editableText}
-              onChangeText={
-                setEditableText
-              }
-              placeholder="No readable text detected."
-            />
-          </>
-        )}
-
-        {result && (
-          <View
-            style={
-              styles.confirmInfo
-            }
-          >
-            <Text
-              style={
-                styles.confirmTitle
-              }
-            >
-              Manual confirmation required
-            </Text>
-
-            <Text
-              style={
-                styles.confirmDescription
-              }
-            >
-              KadaiAI only suggests products
-              and quantities from OCR.
-              Inventory changes happen only
-              after you review the values and
-              press Confirm & Add to Inventory.
-            </Text>
-          </View>
-        )}
       </ScrollView>
+
+      <KadaiBottomNav />
     </SafeAreaView>
   );
 }
 
-const styles =
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: '#F4F9F6',
-    },
+function Stepper({ current }: { current: number }) {
+  const names = ['Upload', 'Detect', 'Review', 'Update'];
+  return (
+    <View style={styles.stepper}>
+      {names.map((name, index) => {
+        const number = index + 1;
+        const active = number <= current;
+        return (
+          <View key={name} style={styles.stepItem}>
+            <View style={[styles.stepCircle, active && styles.stepCircleActive]}>
+              {number < current ? (
+                <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+              ) : (
+                <Text style={[styles.stepNumber, active && styles.stepNumberActive]}>{number}</Text>
+              )}
+            </View>
+            <Text style={[styles.stepName, active && styles.stepNameActive]}>{name}</Text>
+            {index < names.length - 1 && (
+              <View style={[styles.stepLine, number < current && styles.stepLineActive]} />
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 
-    content: {
-      padding: 24,
-      paddingBottom: 50,
-    },
-
-    back: {
-      color: '#1C8A4D',
-      fontSize: 16,
-      fontWeight: '700',
-      marginBottom: 20,
-    },
-
-    title: {
-      fontSize: 28,
-      fontWeight: '800',
-      color: '#183D29',
-    },
-
-    subtitle: {
-      color: '#66796D',
-      marginTop: 8,
-      fontSize: 15,
-      lineHeight: 22,
-    },
-
-    safetyBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#EAF7EE',
-      borderWidth: 1,
-      borderColor: '#CDE8D6',
-      borderRadius: 14,
-      padding: 14,
-      marginTop: 18,
-    },
-
-    safetyIcon: {
-      fontSize: 22,
-      marginRight: 10,
-    },
-
-    safetyTitle: {
-      color: '#1E643C',
-      fontWeight: '800',
-      fontSize: 14,
-    },
-
-    safetyText: {
-      color: '#557064',
-      fontSize: 12,
-      marginTop: 3,
-    },
-
-    button: {
-      backgroundColor: '#FFFFFF',
-      borderWidth: 1,
-      borderColor: '#D8E8DE',
-      marginTop: 18,
-      borderRadius: 16,
-      padding: 18,
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-
-    buttonIcon: {
-      fontSize: 22,
-      marginRight: 10,
-    },
-
-    buttonText: {
-      color: '#1C6C40',
-      fontWeight: '800',
-      fontSize: 15,
-    },
-
-    previewCard: {
-      backgroundColor: '#FFFFFF',
-      borderRadius: 16,
-      marginTop: 18,
-      padding: 10,
-    },
-
-    image: {
-      width: '100%',
-      height: 280,
-      resizeMode: 'contain',
-      borderRadius: 12,
-    },
-
-    extractButton: {
-      backgroundColor: '#1C8A4D',
-      padding: 16,
-      borderRadius: 14,
-      marginTop: 16,
-      alignItems: 'center',
-    },
-
-    extractText: {
-      color: '#FFFFFF',
-      fontWeight: '800',
-      fontSize: 15,
-    },
-
-    warningBox: {
-      backgroundColor: '#FFF4D8',
-      padding: 15,
-      borderRadius: 14,
-      marginTop: 22,
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-    },
-
-    warningIcon: {
-      fontSize: 18,
-      marginRight: 8,
-    },
-
-    warningText: {
-      flex: 1,
-      color: '#725B1A',
-      lineHeight: 20,
-      fontWeight: '600',
-    },
-
-    heading: {
-      marginTop: 26,
-      fontSize: 18,
-      fontWeight: '800',
-      color: '#234631',
-    },
-
-    reviewHint: {
-      color: '#7B6B3D',
-      fontSize: 13,
-      marginTop: 5,
-      marginBottom: 4,
-      lineHeight: 19,
-    },
-
-    detectedItemCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#FFFFFF',
-      borderWidth: 1,
-      borderColor: '#DCE9E1',
-      borderRadius: 14,
-      padding: 14,
-      marginTop: 10,
-    },
-
-    detectedItemInfo: {
-      flex: 1,
-      marginRight: 12,
-    },
-
-    detectedItemName: {
-      fontWeight: '800',
-      color: '#1D4F32',
-      fontSize: 16,
-    },
-
-    detectedSource: {
-      color: '#6B7E73',
-      fontSize: 12,
-      marginTop: 3,
-    },
-
-    detectedConfidence: {
-      color: '#21834C',
-      fontSize: 11,
-      marginTop: 5,
-      fontWeight: '700',
-    },
-
-    quantityArea: {
-      alignItems: 'center',
-    },
-
-    quantityLabel: {
-      color: '#6B7E73',
-      fontSize: 11,
-      fontWeight: '700',
-      marginBottom: 4,
-    },
-
-    quantityInput: {
-      width: 68,
-      backgroundColor: '#F2F8F4',
-      borderWidth: 1,
-      borderColor: '#BFDAC8',
-      borderRadius: 10,
-      textAlign: 'center',
-      fontSize: 18,
-      fontWeight: '800',
-      paddingVertical: 9,
-      color: '#1D4F32',
-    },
-
-    addDetectedButton: {
-      backgroundColor: '#1C8A4D',
-      padding: 15,
-      borderRadius: 14,
-      marginTop: 14,
-      alignItems: 'center',
-    },
-
-    addDetectedButtonDisabled: {
-      backgroundColor: '#75B991',
-    },
-
-    addDetectedText: {
-      color: '#FFFFFF',
-      fontWeight: '900',
-    },
-
-    lineCard: {
-      backgroundColor: '#FFFFFF',
-      marginTop: 9,
-      borderRadius: 12,
-      padding: 13,
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: '#E0EBE4',
-    },
-
-    lineNumber: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      backgroundColor: '#E5F3EA',
-      textAlign: 'center',
-      lineHeight: 28,
-      color: '#1C7645',
-      fontWeight: '800',
-      marginRight: 10,
-    },
-
-    lineText: {
-      flex: 1,
-      color: '#435B4E',
-    },
-
-    noLines: {
-      backgroundColor: '#FFFFFF',
-      padding: 18,
-      borderRadius: 14,
-      marginTop: 10,
-      borderWidth: 1,
-      borderColor: '#E0EBE4',
-    },
-
-    noLinesText: {
-      color: '#708177',
-      textAlign: 'center',
-      lineHeight: 20,
-    },
-
-    rawHint: {
-      color: '#708177',
-      fontSize: 12,
-      lineHeight: 18,
-      marginTop: 5,
-    },
-
-    rawTextInput: {
-      minHeight: 160,
-      backgroundColor: '#FFFFFF',
-      borderRadius: 12,
-      padding: 14,
-      color: '#33473C',
-      borderWidth: 1,
-      borderColor: '#DCE9E1',
-      textAlignVertical: 'top',
-      fontSize: 13,
-      lineHeight: 19,
-      marginTop: 10,
-    },
-
-    confirmInfo: {
-      backgroundColor: '#E5F3EA',
-      borderRadius: 14,
-      padding: 16,
-      marginTop: 22,
-    },
-
-    confirmTitle: {
-      color: '#205B39',
-      fontWeight: '800',
-      marginBottom: 5,
-    },
-
-    confirmDescription: {
-      color: '#557064',
-      lineHeight: 20,
-    },
-  });
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: KadaiColors.background },
+  scroll: { flex: 1 },
+  content: { padding: 20, paddingBottom: 30, gap: 15 },
+  title: { fontSize: 27, fontWeight: '900', color: KadaiColors.text, letterSpacing: -0.5 },
+  subtitle: { fontSize: 13.5, color: KadaiColors.text2, lineHeight: 19, marginTop: 4 },
+  stepper: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: KadaiColors.border, borderRadius: KadaiRadius.large, paddingHorizontal: 10, paddingVertical: 13, flexDirection: 'row' },
+  stepItem: { flex: 1, alignItems: 'center', position: 'relative' },
+  stepCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#EDF2EE', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  stepCircleActive: { backgroundColor: KadaiColors.primary },
+  stepNumber: { color: KadaiColors.muted, fontSize: 11, fontWeight: '900' },
+  stepNumberActive: { color: '#FFFFFF' },
+  stepName: { marginTop: 5, fontSize: 9.5, color: KadaiColors.muted, fontWeight: '700' },
+  stepNameActive: { color: KadaiColors.primary, fontWeight: '900' },
+  stepLine: { position: 'absolute', top: 13, left: '62%', right: '-38%', height: 2, backgroundColor: '#E2E9E4' },
+  stepLineActive: { backgroundColor: KadaiColors.green },
+  safetyCard: { backgroundColor: KadaiColors.mintSoft, borderWidth: 1, borderColor: '#CEE5D4', borderRadius: KadaiRadius.large, padding: 14, flexDirection: 'row', gap: 11, alignItems: 'center' },
+  shield: { width: 40, height: 40, borderRadius: 13, backgroundColor: KadaiColors.mint, alignItems: 'center', justifyContent: 'center' },
+  safetyTitle: { fontSize: 13.5, fontWeight: '900', color: KadaiColors.primary },
+  safetyText: { fontSize: 11.5, color: KadaiColors.text2, lineHeight: 16, marginTop: 2 },
+  uploadCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: KadaiColors.border, borderRadius: KadaiRadius.large, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 11, ...KadaiShadow },
+  uploadIcon: { width: 45, height: 45, borderRadius: 14, backgroundColor: KadaiColors.mintSoft, alignItems: 'center', justifyContent: 'center' },
+  uploadTitle: { fontSize: 14, fontWeight: '900', color: KadaiColors.text },
+  uploadText: { fontSize: 11.5, color: KadaiColors.muted, marginTop: 3 },
+  previewCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: KadaiColors.border, borderRadius: KadaiRadius.large, padding: 10, ...KadaiShadow },
+  preview: { width: '100%', height: 230, resizeMode: 'contain', borderRadius: 12, backgroundColor: '#F6F8F6' },
+  scanButton: { minHeight: 47, borderRadius: 13, marginTop: 10, backgroundColor: KadaiColors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  scanText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '900' },
+  resultHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  sectionTitle: { fontSize: 17, fontWeight: '900', color: KadaiColors.text },
+  sectionSub: { marginTop: 3, fontSize: 11, color: KadaiColors.text2 },
+  detectedBadge: { borderRadius: KadaiRadius.pill, backgroundColor: KadaiColors.mintSoft, paddingHorizontal: 9, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  detectedBadgeText: { color: KadaiColors.greenDark, fontSize: 9.5, fontWeight: '900' },
+  noteCard: { backgroundColor: KadaiColors.amberSoft, borderWidth: 1, borderColor: '#F3D9A2', borderRadius: KadaiRadius.medium, padding: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  noteText: { flex: 1, color: '#795B16', fontSize: 11.5, lineHeight: 17 },
+  itemCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: KadaiColors.border, borderRadius: KadaiRadius.large, padding: 15, ...KadaiShadow },
+  itemTop: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  itemName: { fontSize: 17, fontWeight: '900', color: KadaiColors.text },
+  matchBadge: { alignSelf: 'flex-start', borderRadius: KadaiRadius.pill, paddingHorizontal: 8, paddingVertical: 5, marginTop: 7 },
+  matchBadgeText: { fontSize: 9.5, fontWeight: '900' },
+  qtyBox: { alignItems: 'center' },
+  qtyLabel: { fontSize: 9, fontWeight: '900', color: KadaiColors.muted, marginBottom: 4 },
+  qtyInput: { width: 68, minHeight: 44, textAlign: 'center', borderRadius: 12, backgroundColor: KadaiColors.surfaceAlt, borderWidth: 1, borderColor: '#CFE0D3', color: KadaiColors.primary, fontSize: 18, fontWeight: '900' },
+  confidenceRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 13 },
+  confidenceLabel: { color: KadaiColors.text2, fontSize: 11.5 },
+  confidenceValue: { fontSize: 11.5, fontWeight: '900' },
+  sourceBox: { marginTop: 10, borderRadius: 11, backgroundColor: '#F7F9F7', padding: 10 },
+  sourceLabel: { fontSize: 8.5, color: KadaiColors.muted, fontWeight: '900', letterSpacing: 0.8 },
+  sourceText: { fontSize: 11.5, color: KadaiColors.text2, marginTop: 4, lineHeight: 16 },
+  emptyCard: { minHeight: 150, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: KadaiColors.border, borderRadius: KadaiRadius.large, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  emptyTitle: { fontSize: 15, fontWeight: '900', color: KadaiColors.text, marginTop: 8 },
+  emptyText: { fontSize: 11.5, color: KadaiColors.text2, textAlign: 'center', lineHeight: 16, marginTop: 4 },
+  otherCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: KadaiColors.border, borderRadius: KadaiRadius.large, padding: 14 },
+  otherTitle: { fontSize: 13.5, fontWeight: '900', color: KadaiColors.text },
+  otherHint: { fontSize: 11, color: KadaiColors.muted, lineHeight: 15, marginTop: 3, marginBottom: 8 },
+  otherLine: { fontSize: 11.5, color: KadaiColors.text2, lineHeight: 18 },
+  confirmButton: { minHeight: 50, borderRadius: 14, backgroundColor: KadaiColors.primary, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', ...KadaiShadow },
+  confirmDone: { backgroundColor: KadaiColors.greenDark },
+  confirmText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
+  detailsToggle: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: '#D8E5DB', backgroundColor: '#FFFFFF', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  detailsToggleText: { color: KadaiColors.primary, fontSize: 12.5, fontWeight: '900' },
+  detailsCard: { backgroundColor: '#FFFFFF', borderRadius: KadaiRadius.large, borderWidth: 1, borderColor: KadaiColors.border, padding: 14 },
+  detailsTitle: { fontSize: 14, fontWeight: '900', color: KadaiColors.text },
+  detailsHint: { fontSize: 10.5, color: KadaiColors.muted, marginTop: 3, lineHeight: 15 },
+  rawInput: { minHeight: 150, marginTop: 10, borderRadius: 11, backgroundColor: '#F7F9F7', borderWidth: 1, borderColor: '#E1E8E3', padding: 11, textAlignVertical: 'top', color: KadaiColors.text2, fontSize: 11.5, lineHeight: 17 },
+});
