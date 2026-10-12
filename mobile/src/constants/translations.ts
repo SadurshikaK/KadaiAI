@@ -121,7 +121,15 @@ export const translations = {
     'voice.add': "Add",
     'voice.current_stock': "Current Stock",
     'voice.after_sale': "After Sale",
-    'voice.new_stock': "New Stock"
+    'voice.new_stock': "New Stock",
+    'voice.ask_title': "Ask KadaiAI",
+    'voice.ask_prompt': "What can I help with?",
+    'voice.tap_speak': "Tap to speak",
+    'voice.short_hint': "Try a short, clear shop command.",
+    'voice.smart_restock': "Smart restock",
+    'voice.smart_restock_subtitle': "Build a budget-aware plan",
+    'voice.invoice_tool': "Invoice AI",
+    'voice.invoice_tool_subtitle': "Scan supplier invoices",
   },
   Tamil: {
     'language.choose': "உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்",
@@ -243,7 +251,15 @@ export const translations = {
     'voice.add': "சேர்க்கவும்",
     'voice.current_stock': "தற்போதைய இருப்பு",
     'voice.after_sale': "விற்பனைக்கு பின்",
-    'voice.new_stock': "புதிய இருப்பு"
+    'voice.new_stock': "புதிய இருப்பு",
+    'voice.ask_title': "KadaiAI-யிடம் கேளுங்கள்",
+    'voice.ask_prompt': "நான் உங்களுக்கு என்ன உதவலாம்?",
+    'voice.tap_speak': "பேச தட்டவும்",
+    'voice.short_hint': "குறுகிய, தெளிவான கடை கட்டளையைச் சொல்லுங்கள்.",
+    'voice.smart_restock': "ஸ்மார்ட் மறுஇருப்பு",
+    'voice.smart_restock_subtitle': "பட்ஜெட்டுக்கு ஏற்ற கொள்முதல் திட்டம் உருவாக்கவும்",
+    'voice.invoice_tool': "இன்வாய்ஸ் AI",
+    'voice.invoice_tool_subtitle': "சப்ளையர் இன்வாய்ஸ்களை ஸ்கேன் செய்யவும்",
   },
   Sinhala: {
     'language.choose': "ඔබගේ භාෂාව තෝරන්න",
@@ -365,7 +381,15 @@ export const translations = {
     'voice.add': "එකතු කරන්න",
     'voice.current_stock': "වත්මන් තොගය",
     'voice.after_sale': "විකිණීමෙන් පසු",
-    'voice.new_stock': "නව තොගය"
+    'voice.new_stock': "නව තොගය",
+    'voice.ask_title': "KadaiAIගෙන් අසන්න",
+    'voice.ask_prompt': "මට ඔබට කුමක් උදව් කළ හැකිද?",
+    'voice.tap_speak': "කතා කිරීමට තට්ටු කරන්න",
+    'voice.short_hint': "කෙටි, පැහැදිලි වෙළඳසැල් විධානයක් කියන්න.",
+    'voice.smart_restock': "ස්මාර්ට් නැවත තොග සැලැස්ම",
+    'voice.smart_restock_subtitle': "අයවැයට ගැළපෙන මිලදී ගැනීමේ සැලැස්මක් සංචලනය",
+    'voice.invoice_tool': "ඉන්වොයිස් AI",
+    'voice.invoice_tool_subtitle': "සංචලනය",
   }
 };
 

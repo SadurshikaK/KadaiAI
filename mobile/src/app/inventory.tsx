@@ -1,48 +1,57 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
   SafeAreaView,
+  ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
-  View,
-  Platform,
-  StatusBar,
-  Pressable,
-  ScrollView,
-  RefreshControl,
-  ActivityIndicator,
   TextInput,
+  View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import { useLanguage } from '../context/LanguageContext';
-import { getProducts, searchProducts, seedDemoData, resetDemoData, type Product } from '../services/api';
+
+import KadaiBottomNav from '../components/kadai-bottom-nav';
+import { Product, getProducts, resetDemoData, seedDemoData } from '../services/api';
+import { KadaiColors, KadaiRadius, KadaiShadow } from '../constants/kadai-theme';
+
+type StockState = 'OUT' | 'CRITICAL' | 'LOW' | 'HEALTHY';
+
+function stockState(product: Product): StockState {
+  if (product.quantity <= 0) return 'OUT';
+  if (product.quantity <= Math.max(1, Math.ceil(product.low_stock_threshold * 0.5))) return 'CRITICAL';
+  if (product.quantity <= product.low_stock_threshold) return 'LOW';
+  return 'HEALTHY';
+}
+
+const stateMeta: Record<StockState, { label: string; color: string; bg: string }> = {
+  OUT: { label: 'OUT OF STOCK', color: '#7F1D1D', bg: '#FEE2E2' },
+  CRITICAL: { label: 'CRITICAL', color: '#B42318', bg: KadaiColors.redSoft },
+  LOW: { label: 'LOW', color: '#9A6700', bg: KadaiColors.amberSoft },
+  HEALTHY: { label: 'HEALTHY', color: KadaiColors.greenDark, bg: KadaiColors.mintSoft },
+};
 
 export default function InventoryScreen() {
-  const { t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [seeding, setSeeding] = useState<boolean>(false);
+  const [seeding, setSeeding] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [showReset, setShowReset] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
-  const loadProducts = useCallback(async (query: string = '', isManualRefresh: boolean = false): Promise<boolean> => {
+  const load = useCallback(async (manual = false) => {
     try {
-      if (isManualRefresh) setRefreshing(true);
+      if (manual) setRefreshing(true);
       setError(null);
-      let data: Product[];
-      if (query.trim().length > 0) {
-        data = await searchProducts(query.trim(), 1);
-      } else {
-        data = await getProducts(1);
-      }
-      setProducts(data);
-      return true;
+      setProducts(await getProducts(1));
     } catch (err: any) {
-      setError(err.message || 'Could not load products');
-      return false;
+      setError(err?.message || 'Could not load inventory.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -51,50 +60,55 @@ export default function InventoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void loadProducts(searchQuery, false);
-    }, [loadProducts, searchQuery])
+      void load(false);
+    }, [load])
   );
 
-  const onRefresh = () => {
-    void loadProducts(searchQuery, true);
-  };
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) =>
+      [p.name, p.category, p.barcode || ''].some((value) => value.toLowerCase().includes(q))
+    );
+  }, [products, query]);
 
-  const handleSearch = (text: string) => {
-    setSearchQuery(text); // Focus effect performs the search (avoid two calls).
-    setResetMessage(null);
-  };
+  const stats = useMemo(() => {
+    const counts = { healthy: 0, low: 0, critical: 0, out: 0 };
+    products.forEach((item) => {
+      const state = stockState(item);
+      if (state === 'HEALTHY') counts.healthy += 1;
+      if (state === 'LOW') counts.low += 1;
+      if (state === 'CRITICAL') counts.critical += 1;
+      if (state === 'OUT') counts.out += 1;
+    });
+    const health = products.length ? Math.round((counts.healthy / products.length) * 100) : 100;
+    return { ...counts, health };
+  }, [products]);
 
-  const handleSeed = async () => {
+  const seed = async () => {
     try {
       setSeeding(true);
+      setMessage(null);
       await seedDemoData(1);
-      await loadProducts('', true);
+      await load(true);
     } catch (err: any) {
-      setError(err.message || 'Failed to seed sample data');
+      setError(err?.message || 'Unable to load sample products.');
     } finally {
       setSeeding(false);
     }
   };
 
-  const handleReset = async () => {
-    if (resetting) return;
-
+  const reset = async () => {
     try {
       setResetting(true);
       setError(null);
-      setResetMessage(null);
-
-      const response = await resetDemoData(1); // Called only after confirming below.
-      setShowResetConfirm(false);
-      setSearchQuery('');
-      const reloaded = await loadProducts('', true);
-      if (reloaded) {
-        setResetMessage(response.message);
-      } else {
-        setResetMessage('Demo reset completed, but inventory could not refresh. Try again.');
-      }
+      const response = await resetDemoData(1);
+      setShowReset(false);
+      setQuery('');
+      await load(true);
+      setMessage(response.message);
     } catch (err: any) {
-      setError(err.message || 'Failed to reset demo');
+      setError(err?.message || 'Unable to reset demo store.');
     } finally {
       setResetting(false);
     }
@@ -102,559 +116,260 @@ export default function InventoryScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F9F6" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>← {t('common.back')}</Text>
-        </Pressable>
-        <Text style={styles.title}>{t('inventory.title')}</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <StatusBar barStyle="dark-content" backgroundColor={KadaiColors.background} />
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <TextInput
-          style={styles.searchInput}
-          placeholder={t('common.search')}
-          placeholderTextColor="#8CA196"
-          value={searchQuery}
-          onChangeText={handleSearch}
-          clearButtonMode="while-editing"
-        />
-        {searchQuery.length > 0 && (
-          <Pressable onPress={() => handleSearch('')} style={styles.clearBtn}>
-            <Text style={styles.clearBtnText}>✕</Text>
-          </Pressable>
-        )}
-      </View>
-
-      {/* Error Banner */}
-      {error && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>⚠️ {error}</Text>
+      <View style={styles.top}>
+        <View>
+          <Text style={styles.title}>Inventory</Text>
+          <Text style={styles.subtitle}>Live stock health and quick actions</Text>
         </View>
-      )}
+        <Pressable style={styles.addButton} onPress={() => router.push('/add-stock')}>
+          <Ionicons name="add" size={22} color="#FFFFFF" />
+        </Pressable>
+      </View>
 
-      {/* Competition demo reset: requires human confirmation */}
-      <View style={styles.resetSection}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void load(true)}
+            tintColor={KadaiColors.greenDark}
+            colors={[KadaiColors.greenDark]}
+          />
+        }
+      >
+        <View style={styles.healthCard}>
+          <View>
+            <Text style={styles.healthLabel}>Inventory health</Text>
+            <View style={styles.healthValueRow}>
+              <Text style={styles.healthValue}>{stats.health}</Text>
+              <Text style={styles.healthOutOf}>/ 100</Text>
+            </View>
+            <Text style={styles.healthWord}>
+              {stats.health >= 80 ? 'GOOD' : stats.health >= 60 ? 'NEEDS ATTENTION' : 'AT RISK'}
+            </Text>
+          </View>
+          <View style={styles.healthStats}>
+            <MiniStat value={stats.healthy} label="Healthy" color={KadaiColors.green} />
+            <MiniStat value={stats.low} label="Low" color="#FBBF24" />
+            <MiniStat value={stats.critical + stats.out} label="Critical" color="#FCA5A5" />
+          </View>
+        </View>
+
+        <View style={styles.searchBox}>
+          <Ionicons name="search-outline" size={19} color={KadaiColors.muted} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search product, category or barcode"
+            placeholderTextColor="#8B9A91"
+            value={query}
+            onChangeText={setQuery}
+          />
+          {!!query && (
+            <Pressable onPress={() => setQuery('')}>
+              <Ionicons name="close-circle" size={19} color={KadaiColors.muted} />
+            </Pressable>
+          )}
+        </View>
+
+        {error && (
+          <View style={styles.errorCard}>
+            <Ionicons name="warning-outline" size={18} color={KadaiColors.redDark} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
+        {message && (
+          <View style={styles.successCard}>
+            <Ionicons name="checkmark-circle-outline" size={18} color={KadaiColors.greenDark} />
+            <Text style={styles.successText}>{message}</Text>
+          </View>
+        )}
+
+        {loading && !refreshing ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={KadaiColors.greenDark} size="large" />
+            <Text style={styles.centerText}>Loading inventory…</Text>
+          </View>
+        ) : filtered.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="cube-outline" size={36} color={KadaiColors.muted} />
+            <Text style={styles.emptyTitle}>No products found</Text>
+            <Text style={styles.emptyText}>
+              {products.length ? 'Try another search.' : 'Load the sample store to start the demo.'}
+            </Text>
+            {!products.length && (
+              <Pressable style={styles.primaryButton} onPress={seed} disabled={seeding}>
+                {seeding ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Load sample products</Text>}
+              </Pressable>
+            )}
+          </View>
+        ) : (
+          <>
+            <View style={styles.listHeader}>
+              <Text style={styles.sectionTitle}>Products</Text>
+              <Text style={styles.countText}>{filtered.length} items</Text>
+            </View>
+            {filtered.map((item) => <ProductCard key={item.id} item={item} />)}
+          </>
+        )}
+
         <Pressable
-          style={({ pressed }) => [styles.resetButton, pressed && styles.buttonPressed]}
+          style={styles.resetLink}
           onPress={() => {
-            setResetMessage(null);
-            setShowResetConfirm(true);
+            setMessage(null);
+            setShowReset((v) => !v);
           }}
-          disabled={resetting || seeding || loading}
-          accessibilityRole="button"
-          accessibilityLabel="Reset Competition Demo"
         >
-          <Text style={styles.resetButtonText}>Reset Competition Demo</Text>
+          <Ionicons name="refresh-outline" size={17} color={KadaiColors.redDark} />
+          <Text style={styles.resetLinkText}>Reset demo store</Text>
         </Pressable>
 
-        {showResetConfirm && (
-          <View style={styles.resetConfirmBox}>
-            <Text style={styles.resetWarning}>
-              This will delete demo sales and stock history for Shop 1 and
-              restore the sample inventory. Continue?
+        {showReset && (
+          <View style={styles.resetCard}>
+            <Text style={styles.resetTitle}>Restore competition demo data?</Text>
+            <Text style={styles.resetText}>
+              This removes demo sales and stock history for Shop 1 and restores the original sample inventory.
             </Text>
-            <View style={styles.resetActions}>
-              <Pressable
-                style={styles.resetCancelButton}
-                onPress={() => setShowResetConfirm(false)}
-                disabled={resetting}
-                accessibilityRole="button"
-              >
-                <Text style={styles.resetCancelText}>Cancel</Text>
+            <View style={styles.resetRow}>
+              <Pressable style={styles.cancelButton} onPress={() => setShowReset(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
               </Pressable>
-              <Pressable
-                style={styles.resetApplyButton}
-                onPress={handleReset}
-                disabled={resetting}
-                accessibilityRole="button"
-              >
-                <Text style={styles.resetApplyText}>
-                  {resetting ? 'Resetting...' : 'Confirm Reset'}
-                </Text>
+              <Pressable style={styles.dangerButton} onPress={reset} disabled={resetting}>
+                {resetting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.dangerText}>Confirm reset</Text>}
               </Pressable>
             </View>
           </View>
         )}
+      </ScrollView>
 
-        {resetMessage && <Text style={styles.resetSuccess}>{resetMessage}</Text>}
-      </View>
-
-      {/* Main Content */}
-      {loading && !refreshing ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#22A05B" />
-          <Text style={styles.loadingText}>{t('common.loading')}</Text>
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#22A05B']}
-              tintColor="#22A05B"
-            />
-          }
-        >
-          {products.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📦</Text>
-              <Text style={styles.emptyTitle}>{t('inventory.empty')}</Text>
-              <Text style={styles.emptySubtitle}>
-                Add your first product or load sample products into the demo inventory.
-              </Text>
-              <Pressable
-                style={({ pressed }) => [styles.seedButton, pressed && styles.buttonPressed]}
-                onPress={handleSeed}
-                disabled={seeding}
-              >
-                {seeding ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.seedButtonText}>🌱 Load Sample Products</Text>
-                )}
-              </Pressable>
-            </View>
-          ) : (
-            products.map((item) => {
-              // Critical = out of stock; Low = at/below threshold; otherwise Healthy.
-              const stockState = item.quantity <= 0
-                ? 'CRITICAL'
-                : item.quantity <= item.low_stock_threshold
-                  ? 'LOW'
-                  : 'HEALTHY';
-              const isLowStock = stockState !== 'HEALTHY';
-              return (
-                <View
-                  key={item.id}
-                  style={[
-                    styles.productCard,
-                    isLowStock && styles.productCardLowStock,
-                  ]}
-                >
-                  <View style={styles.productTopRow}>
-                    <View style={styles.nameCategoryBox}>
-                      <Text style={styles.productName}>{item.name}</Text>
-                      <View style={styles.categoryBadge}>
-                        <Text style={styles.categoryBadgeText}>{item.category}</Text>
-                      </View>
-                    </View>
-
-                    {/* Stock Status Badge */}
-                    <View
-                      style={[
-                        styles.stockBadge,
-                        stockState === 'CRITICAL'
-                          ? styles.stockBadgeCritical
-                          : stockState === 'LOW'
-                            ? styles.stockBadgeLow
-                            : styles.stockBadgeHealthy,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.stockBadgeText,
-                          stockState === 'CRITICAL'
-                            ? styles.stockBadgeTextCritical
-                            : stockState === 'LOW'
-                              ? styles.stockBadgeTextLow
-                              : styles.stockBadgeTextHealthy,
-                        ]}
-                      >
-                        {stockState === 'CRITICAL'
-                          ? `⛔ CRITICAL: ${item.quantity}`
-                          : stockState === 'LOW'
-                            ? `⚠️ ${t('inventory.lowStockBadge')}: ${item.quantity}`
-                            : `✓ ${t('inventory.healthyBadge')}: ${item.quantity}`}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Details Row */}
-                  <View style={styles.detailsRow}>
-                    <View style={styles.detailItem}>
-                      <Text style={styles.detailLabel}>{t('common.unitPrice')}</Text>
-                      <Text style={styles.priceValue}>Rs. {Number(item.selling_price).toLocaleString()}</Text>
-                    </View>
-                    <View style={styles.detailItem}>
-                      <Text style={styles.detailLabel}>Alert Threshold</Text>
-                      <Text style={styles.detailValue}>≤ {item.low_stock_threshold} units</Text>
-                    </View>
-                  </View>
-
-                  {/* Quick Action Buttons */}
-                  <View style={styles.cardActionsRow}>
-                    <Pressable
-                      style={({ pressed }) => [styles.quickSellBtn, pressed && styles.buttonPressed]}
-                      onPress={() => router.push(`/sell?product_id=${item.id}`)}
-                    >
-                      <Text style={styles.quickSellText}>🛒 {t('home.sellProduct')}</Text>
-                    </Pressable>
-
-                    <Pressable
-                      style={({ pressed }) => [styles.quickAddBtn, pressed && styles.buttonPressed]}
-                      onPress={() => router.push(`/add-stock?product_id=${item.id}`)}
-                    >
-                      <Text style={styles.quickAddText}>📦 {t('home.addStock')}</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            })
-          )}
-        </ScrollView>
-      )}
+      <KadaiBottomNav />
     </SafeAreaView>
   );
 }
 
+function MiniStat({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <View style={styles.miniStat}>
+      <Text style={[styles.miniValue, { color }]}>{value}</Text>
+      <Text style={styles.miniLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function ProductCard({ item }: { item: Product }) {
+  const state = stockState(item);
+  const meta = stateMeta[state];
+  const visualMax = Math.max(item.low_stock_threshold * 2, item.quantity, 1);
+  const progress = Math.max(0, Math.min(1, item.quantity / visualMax));
+  const topUp = Math.max(0, item.low_stock_threshold * 2 - item.quantity);
+
+  return (
+    <View style={styles.productCard}>
+      <View style={styles.productTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.productName}>{item.name}</Text>
+          <Text style={styles.category}>{item.category}</Text>
+        </View>
+        <View style={[styles.stateBadge, { backgroundColor: meta.bg }]}>
+          <View style={[styles.stateDot, { backgroundColor: meta.color }]} />
+          <Text style={[styles.stateText, { color: meta.color }]}>{meta.label}</Text>
+        </View>
+      </View>
+
+      <View style={styles.quantityRow}>
+        <Text style={styles.quantity}>{item.quantity}</Text>
+        <Text style={styles.units}>units in stock</Text>
+      </View>
+
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: meta.color }]} />
+      </View>
+
+      <View style={styles.productMetaRow}>
+        <Text style={styles.productMeta}>Reorder level: {item.low_stock_threshold}</Text>
+        {topUp > 0 && <Text style={styles.topUp}>Target top-up: +{topUp}</Text>}
+      </View>
+
+      <View style={styles.actionRow}>
+        <Pressable style={styles.sellAction} onPress={() => router.push(`/sell?product_id=${item.id}`)}>
+          <Ionicons name="cart-outline" size={17} color="#FFFFFF" />
+          <Text style={styles.sellActionText}>Sell</Text>
+        </Pressable>
+        <Pressable style={styles.stockAction} onPress={() => router.push(`/add-stock?product_id=${item.id}`)}>
+          <Ionicons name="add-circle-outline" size={17} color={KadaiColors.primary} />
+          <Text style={styles.stockActionText}>Add stock</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F4F9F6',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 30,
-    paddingBottom: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E8F0EA',
-  },
-  backButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F3D26',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F3D26',
-    letterSpacing: -0.3,
-  },
-
-  // Search
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 8,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    height: 48,
-    borderWidth: 1,
-    borderColor: '#DFE8E2',
-  },
-  searchIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#1A2E24',
-    height: '100%',
-  },
-  clearBtn: {
-    padding: 4,
-  },
-  clearBtnText: {
-    color: '#8CA196',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-
-  errorBox: {
-    backgroundColor: '#FDEDEC',
-    padding: 12,
-    marginHorizontal: 20,
-    marginTop: 8,
-    borderRadius: 10,
-  },
-  errorText: {
-    color: '#C0392B',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-
-  centerContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B8276',
-  },
-
-  listContainer: {
-    padding: 20,
-    paddingBottom: 40,
-    gap: 14,
-  },
-
-  // Product Card
-  productCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E8F0EA',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  productCardLowStock: {
-    borderColor: '#FBD89C',
-    backgroundColor: '#FFFDF9',
-  },
-  productTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  nameCategoryBox: {
-    flex: 1,
-    marginRight: 10,
-  },
-  productName: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1A2E24',
-    marginBottom: 4,
-  },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#F0F9F4',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  categoryBadgeText: {
-    fontSize: 12,
-    color: '#22A05B',
-    fontWeight: '600',
-  },
-
-  stockBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-    maxWidth: '55%',
-  },
-  stockBadgeHealthy: {
-    backgroundColor: '#EAF7EE',
-  },
-  stockBadgeCritical: {
-    backgroundColor: '#FDEDEC',
-  },
-  stockBadgeLow: {
-    backgroundColor: '#FDECC8',
-  },
-  stockBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  stockBadgeTextHealthy: {
-    color: '#1B7A42',
-  },
-  stockBadgeTextLow: {
-    color: '#8A5D0F',
-  },
-  stockBadgeTextCritical: {
-    color: '#B42318',
-  },
-
-  detailsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: '#F8FAF9',
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 14,
-  },
-  detailItem: {},
-  detailLabel: {
-    fontSize: 12,
-    color: '#6B8276',
-    marginBottom: 2,
-  },
-  priceValue: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F3D26',
-  },
-  detailValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3B5245',
-  },
-
-  cardActionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  quickSellBtn: {
-    flex: 1,
-    backgroundColor: '#22A05B',
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickSellText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  quickAddBtn: {
-    flex: 1,
-    backgroundColor: '#EBF5F0',
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickAddText: {
-    color: '#0F3D26',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  buttonPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
-  },
-
-  // Competition demo reset
-  resetSection: {
-    marginHorizontal: 20,
-    marginTop: 10,
-    marginBottom: 10,
-  },
-  resetButton: {
-    backgroundColor: '#FFF1F0',
-    borderColor: '#D9534F',
-    borderWidth: 1,
-    padding: 13,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resetButtonText: {
-    color: '#B83D37',
-    fontWeight: '800',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  resetConfirmBox: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#F0C7C5',
-  },
-  resetWarning: {
-    color: '#813C35',
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  resetActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
-  },
-  resetCancelButton: {
-    flex: 1,
-    minHeight: 44,
-    padding: 12,
-    backgroundColor: '#E9EDEB',
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resetCancelText: {
-    color: '#1A2E24',
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  resetApplyButton: {
-    flex: 1,
-    minHeight: 44,
-    padding: 12,
-    backgroundColor: '#C63D36',
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resetApplyText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  resetSuccess: {
-    color: '#167A45',
-    marginTop: 10,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-
-  // Empty State
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 20,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A2E24',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#6B8276',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  seedButton: {
-    backgroundColor: '#22A05B',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 14,
-  },
-  seedButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 15,
-  },
+  container: { flex: 1, backgroundColor: KadaiColors.background },
+  top: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { fontSize: 26, fontWeight: '900', color: KadaiColors.text, letterSpacing: -0.5 },
+  subtitle: { fontSize: 12.5, color: KadaiColors.text2, marginTop: 2 },
+  addButton: { width: 44, height: 44, borderRadius: 15, backgroundColor: KadaiColors.primary, alignItems: 'center', justifyContent: 'center', ...KadaiShadow },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 20, paddingBottom: 28, gap: 13 },
+  healthCard: { backgroundColor: KadaiColors.primary, borderRadius: KadaiRadius.xl, padding: 18, flexDirection: 'row', justifyContent: 'space-between', gap: 16, ...KadaiShadow },
+  healthLabel: { color: '#CFE8D8', fontSize: 12, fontWeight: '700' },
+  healthValueRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 4 },
+  healthValue: { color: '#FFFFFF', fontSize: 36, fontWeight: '900' },
+  healthOutOf: { color: '#A9CEB6', fontSize: 13, fontWeight: '700', marginLeft: 3 },
+  healthWord: { color: '#A7F3D0', fontSize: 10.5, fontWeight: '900', letterSpacing: 1, marginTop: 2 },
+  healthStats: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
+  miniStat: { alignItems: 'center' },
+  miniValue: { fontSize: 20, fontWeight: '900' },
+  miniLabel: { color: '#D5EADF', fontSize: 9.5, marginTop: 2, fontWeight: '600' },
+  searchBox: { minHeight: 50, backgroundColor: '#FFFFFF', borderRadius: KadaiRadius.medium, borderWidth: 1, borderColor: KadaiColors.border, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, gap: 9 },
+  searchInput: { flex: 1, color: KadaiColors.text, fontSize: 14 },
+  errorCard: { backgroundColor: KadaiColors.redSoft, borderWidth: 1, borderColor: '#F4CCCC', borderRadius: KadaiRadius.medium, padding: 12, flexDirection: 'row', gap: 8, alignItems: 'center' },
+  errorText: { flex: 1, color: KadaiColors.redDark, fontSize: 12.5 },
+  successCard: { backgroundColor: KadaiColors.mintSoft, borderWidth: 1, borderColor: '#CDE7D4', borderRadius: KadaiRadius.medium, padding: 12, flexDirection: 'row', gap: 8, alignItems: 'center' },
+  successText: { flex: 1, color: KadaiColors.greenDark, fontSize: 12.5, fontWeight: '700' },
+  center: { minHeight: 220, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  centerText: { color: KadaiColors.text2, fontSize: 13 },
+  emptyCard: { minHeight: 260, backgroundColor: '#FFFFFF', borderRadius: KadaiRadius.large, alignItems: 'center', justifyContent: 'center', padding: 24, borderWidth: 1, borderColor: KadaiColors.border },
+  emptyTitle: { fontSize: 17, fontWeight: '900', color: KadaiColors.text, marginTop: 10 },
+  emptyText: { fontSize: 13, color: KadaiColors.text2, textAlign: 'center', marginTop: 5, lineHeight: 18 },
+  primaryButton: { marginTop: 18, backgroundColor: KadaiColors.primary, borderRadius: KadaiRadius.medium, minHeight: 46, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+  primaryButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
+  listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  sectionTitle: { fontSize: 17, fontWeight: '900', color: KadaiColors.text },
+  countText: { fontSize: 11.5, color: KadaiColors.muted, fontWeight: '700' },
+  productCard: { backgroundColor: '#FFFFFF', borderRadius: KadaiRadius.large, borderWidth: 1, borderColor: KadaiColors.border, padding: 16, ...KadaiShadow },
+  productTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' },
+  productName: { fontSize: 17, fontWeight: '900', color: KadaiColors.text },
+  category: { marginTop: 3, color: KadaiColors.text2, fontSize: 11.5, fontWeight: '600' },
+  stateBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 6, borderRadius: KadaiRadius.pill },
+  stateDot: { width: 7, height: 7, borderRadius: 4 },
+  stateText: { fontSize: 9.5, fontWeight: '900' },
+  quantityRow: { flexDirection: 'row', alignItems: 'baseline', gap: 5, marginTop: 15 },
+  quantity: { fontSize: 30, fontWeight: '900', color: KadaiColors.text },
+  units: { fontSize: 12, color: KadaiColors.text2, fontWeight: '600' },
+  progressTrack: { height: 7, borderRadius: 5, backgroundColor: '#EDF2EE', overflow: 'hidden', marginTop: 9 },
+  progressFill: { height: '100%', borderRadius: 5 },
+  productMetaRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginTop: 9 },
+  productMeta: { fontSize: 11.5, color: KadaiColors.muted },
+  topUp: { fontSize: 11.5, color: KadaiColors.greenDark, fontWeight: '800' },
+  actionRow: { flexDirection: 'row', gap: 9, marginTop: 15 },
+  sellAction: { flex: 1, minHeight: 43, borderRadius: 12, backgroundColor: KadaiColors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 },
+  sellActionText: { color: '#FFFFFF', fontWeight: '900', fontSize: 12.5 },
+  stockAction: { flex: 1, minHeight: 43, borderRadius: 12, backgroundColor: KadaiColors.mintSoft, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 },
+  stockActionText: { color: KadaiColors.primary, fontWeight: '900', fontSize: 12.5 },
+  resetLink: { alignSelf: 'center', marginTop: 8, flexDirection: 'row', gap: 6, alignItems: 'center', padding: 8 },
+  resetLinkText: { color: KadaiColors.redDark, fontSize: 12, fontWeight: '800' },
+  resetCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F3C4C4', borderRadius: KadaiRadius.large, padding: 15 },
+  resetTitle: { fontSize: 14, fontWeight: '900', color: KadaiColors.text },
+  resetText: { fontSize: 12, color: KadaiColors.text2, lineHeight: 17, marginTop: 5 },
+  resetRow: { flexDirection: 'row', gap: 9, marginTop: 14 },
+  cancelButton: { flex: 1, minHeight: 42, borderRadius: 11, backgroundColor: '#EEF2EF', alignItems: 'center', justifyContent: 'center' },
+  cancelText: { color: KadaiColors.text, fontWeight: '800', fontSize: 12.5 },
+  dangerButton: { flex: 1, minHeight: 42, borderRadius: 11, backgroundColor: KadaiColors.redDark, alignItems: 'center', justifyContent: 'center' },
+  dangerText: { color: '#FFFFFF', fontWeight: '900', fontSize: 12.5 },
 });

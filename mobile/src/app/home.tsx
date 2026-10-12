@@ -1,872 +1,344 @@
-import { useCallback, useState } from 'react';
-
+import { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
   SafeAreaView,
+  ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
-  Platform,
-  StatusBar,
-  Pressable,
-  ScrollView,
-  RefreshControl,
-  ActivityIndicator,
 } from 'react-native';
-
+import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 
-import { useLanguage } from '../context/LanguageContext';
+import AIStatusStrip from '../components/ai-status-strip';
+import KadaiBottomNav from '../components/kadai-bottom-nav';
+import {
+  DashboardData,
+  LowStockProduct,
+  Product,
+  SaleHistoryItem,
+  getDashboard,
+  getLowStockProducts,
+  getProducts,
+  getSalesHistory,
+} from '../services/api';
+import { KadaiColors, KadaiRadius, KadaiShadow } from '../constants/kadai-theme';
 
-import { getDashboard, DashboardData } from '../services/api';
+type HomeBundle = {
+  dashboard: DashboardData;
+  products: Product[];
+  lowStock: LowStockProduct[];
+  history: SaleHistoryItem[];
+};
+
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function money(value: number) {
+  return `Rs. ${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
 
 export default function HomeScreen() {
-  const { t } = useLanguage();
-
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
-
-  const [loading, setLoading] = useState<boolean>(true);
-
-  const [refreshing, setRefreshing] = useState<boolean>(false);
-
+  const [data, setData] = useState<HomeBundle | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [isRealData, setIsRealData] = useState<boolean>(false);
-
-  const fetchDashboardData = async (
-    isManualRefresh: boolean = false
-  ) => {
+  const load = useCallback(async (manual = false) => {
     try {
-      if (isManualRefresh) {
-        setRefreshing(true);
-      }
-
+      if (manual) setRefreshing(true);
       setError(null);
 
-      const data = await getDashboard(1);
+      const [dashboard, products, lowStock, history] = await Promise.all([
+        getDashboard(1),
+        getProducts(1),
+        getLowStockProducts(1),
+        getSalesHistory(6, 1),
+      ]);
 
-      setDashboard(data);
-
-      setIsRealData(true);
+      setData({ dashboard, products, lowStock, history });
     } catch (err: any) {
-      console.warn('Dashboard fetch error:', err.message);
-
-      setError(err.message || 'Unable to connect to server');
-
-      setIsRealData(false);
+      setError(err?.message || 'Unable to reach the KadaiAI backend.');
     } finally {
       setLoading(false);
-
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      fetchDashboardData(false);
-    }, [])
+      void load(false);
+    }, [load])
   );
 
-  const onRefresh = () => {
-    fetchDashboardData(true);
-  };
+  const health = useMemo(() => {
+    if (!data?.products.length) return 100;
+    const healthy = data.products.filter((item) => item.quantity > item.low_stock_threshold).length;
+    return Math.round((healthy / data.products.length) * 100);
+  }, [data]);
 
-  const todaySalesDisplay =
-    isRealData && dashboard
-      ? `Rs. ${Number(
-          dashboard.today_sales
-        ).toLocaleString()}`
-      : 'Rs. 4,250';
-
-  const lowStockCount =
-    isRealData && dashboard
-      ? dashboard.low_stock_count
-      : 3;
-
-  const lowStockTitle =
-    lowStockCount === 1
-      ? '1 product needs attention'
-      : `${lowStockCount} products need attention`;
+  const insight = data?.lowStock[0];
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#F4F9F6"
-      />
+      <StatusBar barStyle="dark-content" backgroundColor={KadaiColors.background} />
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#22A05B']}
-            tintColor="#22A05B"
+            onRefresh={() => void load(true)}
+            tintColor={KadaiColors.greenDark}
+            colors={[KadaiColors.greenDark]}
           />
         }
       >
-        {/* Top Area */}
-        <View style={styles.topArea}>
-          <View style={styles.headerRow}>
-            <Pressable
-              style={styles.logoRow}
-              onPress={() => router.push('/about')}
-              accessibilityLabel="About KadaiAI"
-            >
-              <Text style={styles.logoEmoji}>
-                🏪
-              </Text>
-
-              <Text style={styles.appName}>
-                KadaiAI
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.notificationButton}
-              onPress={() =>
-                router.push('/inventory')
-              }
-              accessibilityLabel="View Inventory"
-            >
-              <Text
-                style={styles.notificationIcon}
-              >
-                📦
-              </Text>
-            </Pressable>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.brand}>KadaiAI</Text>
+            <Text style={styles.tagline}>Your AI shop assistant</Text>
           </View>
-
-          <View
-            style={styles.greetingContainer}
-          >
-            <Text style={styles.greeting}>
-              {t('home.greeting')} 👋
-            </Text>
-
-            <Text style={styles.subtitle}>
-              {t('home.subtitle')}
-            </Text>
-          </View>
+          <Pressable style={styles.profileButton} onPress={() => router.push('/about')}>
+            <Ionicons name="storefront-outline" size={21} color={KadaiColors.primary} />
+          </Pressable>
         </View>
 
-        {/* Backend Connection Status */}
-        <View
-          style={[
-            styles.connectionBanner,
-            isRealData
-              ? styles.connectionOnline
-              : styles.connectionOffline,
-          ]}
-        >
-          <View style={styles.connectionLeft}>
-            <View
-              style={[
-                styles.connectionDot,
-                {
-                  backgroundColor:
-                    isRealData
-                      ? '#22A05B'
-                      : '#C0392B',
-                },
-              ]}
-            />
+        <AIStatusStrip
+          status={error ? 'Offline' : loading ? 'Connecting' : 'Connected'}
+          busy={loading}
+        />
 
-            <Text
-              style={[
-                styles.connectionText,
-                {
-                  color: isRealData
-                    ? '#176B3A'
-                    : '#A93226',
-                },
-              ]}
-            >
-              {isRealData
-                ? 'KadaiAI Server Connected'
-                : 'KadaiAI Server Offline'}
-            </Text>
-          </View>
-
-          {!isRealData && (
-            <Pressable
-              onPress={() =>
-                fetchDashboardData(true)
-              }
-              style={styles.retryConnection}
-              disabled={refreshing}
-            >
-              {refreshing ? (
-                <ActivityIndicator
-                  size="small"
-                  color="#A93226"
-                />
-              ) : (
-                <Text
-                  style={
-                    styles.retryConnectionText
-                  }
-                >
-                  Retry
-                </Text>
-              )}
-            </Pressable>
-          )}
+        <View style={styles.greetingBlock}>
+          <Text style={styles.greeting}>{greeting()}</Text>
+          <Text style={styles.greetingSub}>
+            {error
+              ? 'The local server is unavailable. Start the backend and retry.'
+              : health >= 80
+                ? 'Your shop looks healthy today.'
+                : 'A few stock items need your attention.'}
+          </Text>
         </View>
 
-        {/* Offline / Error Notice */}
         {error && (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorIcon}>
-              ⚠️
-            </Text>
+          <Pressable style={styles.errorCard} onPress={() => void load(true)}>
+            <Ionicons name="cloud-offline-outline" size={20} color={KadaiColors.redDark} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.errorTitle}>Connection issue</Text>
+              <Text style={styles.errorText} numberOfLines={2}>{error}</Text>
+            </View>
+            <Text style={styles.retry}>Retry</Text>
+          </Pressable>
+        )}
 
-            <Text
-              style={styles.errorText}
-              numberOfLines={2}
-            >
-              {error}
-            </Text>
+        <Pressable style={styles.aiHero} onPress={() => router.push('/voice')}>
+          <View style={styles.aiHeroTop}>
+            <View>
+              <Text style={styles.aiEyebrow}>ASK KADAI AI</Text>
+              <Text style={styles.aiTitle}>What happened in your shop?</Text>
+            </View>
+            <View style={styles.micCircle}>
+              <Ionicons name="mic" size={25} color="#FFFFFF" />
+            </View>
+          </View>
+
+          <Text style={styles.aiExample}>“Sold 3 biscuits”</Text>
+          <Text style={styles.aiHint}>Tap to speak in English, தமிழ் or සිංහල</Text>
+
+          <View style={styles.chipRow}>
+            <Pressable style={styles.chip} onPress={() => router.push('/low-stock')}>
+              <Text style={styles.chipText}>Low stock?</Text>
+            </Pressable>
+            <Pressable style={styles.chip} onPress={() => router.push('/ai-shopping')}>
+              <Text style={styles.chipText}>Restock plan</Text>
+            </Pressable>
+            <Pressable style={styles.chip} onPress={() => router.push('/voice')}>
+              <Text style={styles.chipText}>Check a product</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+
+        <Text style={styles.sectionLabel}>{"TODAY'S SHOP"}</Text>
+
+        {loading && !data ? (
+          <View style={styles.loadingCard}>
+            <ActivityIndicator color={KadaiColors.greenDark} />
+            <Text style={styles.loadingText}>Loading live shop data…</Text>
+          </View>
+        ) : (
+          <View style={styles.metricsGrid}>
+            <MetricCard icon="cash-outline" value={money(data?.dashboard.today_sales || 0)} label="Sales" />
+            <MetricCard icon="receipt-outline" value={String(data?.dashboard.sales_count || 0)} label="Transactions" />
+            <MetricCard
+              icon="alert-circle-outline"
+              value={String(data?.dashboard.low_stock_count || 0)}
+              label="Low stock"
+              attention={(data?.dashboard.low_stock_count || 0) > 0}
+            />
+            <MetricCard icon="pulse-outline" value={`${health}%`} label="Inventory health" />
           </View>
         )}
 
-        {/* Low Stock Alert */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.alertCard,
-            pressed &&
-              styles.alertCardPressed,
-          ]}
-          onPress={() =>
-            router.push('/low-stock')
-          }
-        >
-          <View style={styles.alertIconBox}>
-            <Text style={styles.alertIcon}>
-              ⚠️
-            </Text>
-          </View>
-
-          <View
-            style={
-              styles.alertTextContainer
-            }
-          >
-            <Text style={styles.alertTitle}>
-              {isRealData
-                ? lowStockTitle
-                : t('home.attention')}
-            </Text>
-
-            <Text
-              style={styles.alertSubtitle}
-            >
-              {t('home.lowStock')}
-            </Text>
-          </View>
-
-          <Text style={styles.alertChevron}>
-            ›
-          </Text>
-        </Pressable>
-
-        {/* Sales Summary Card */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.salesCard,
-            pressed &&
-              styles.salesCardPressed,
-          ]}
-          onPress={() =>
-            router.push('/inventory')
-          }
-        >
-          <Text style={styles.salesHeading}>
-            {t('home.todaySales')}
-          </Text>
-
-          {loading && !dashboard ? (
-            <ActivityIndicator
-              color="#FFFFFF"
-              size="small"
-              style={{
-                marginVertical: 8,
-                alignSelf: 'flex-start',
-              }}
-            />
-          ) : (
-            <Text style={styles.salesAmount}>
-              {todaySalesDisplay}
-            </Text>
-          )}
-
-          {!isRealData ? (
-            <View style={styles.demoBadge}>
-              <Text style={styles.demoText}>
-                {t('home.demoData')}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.liveBadge}>
-              <Text style={styles.liveText}>
-                ● Live
-              </Text>
-            </View>
-          )}
-        </Pressable>
-
-        {/* Main Actions */}
-        <View
-          style={styles.actionsContainer}
-        >
-          <Pressable
-            style={({ pressed }) => [
-              styles.actionCard,
-              pressed &&
-                styles.actionCardPressed,
-            ]}
-            onPress={() =>
-              router.push('/sell')
-            }
-          >
-            <View style={styles.actionIconBox}>
-              <Text style={styles.actionIcon}>
-                🛒
-              </Text>
-            </View>
-
-            <View
-              style={
-                styles.actionTextContainer
-              }
-            >
-              <Text style={styles.actionTitle}>
-                {t('home.sellProduct')}
-              </Text>
-
-              <Text
-                style={styles.actionSubtitle}
-              >
-                {t('home.sellDescription')}
-              </Text>
-            </View>
-
-            <Text
-              style={styles.actionChevron}
-            >
-              ›
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.actionCard,
-              pressed &&
-                styles.actionCardPressed,
-            ]}
-            onPress={() =>
-              router.push('/add-stock')
-            }
-          >
-            <View style={styles.actionIconBox}>
-              <Text style={styles.actionIcon}>
-                📦
-              </Text>
-            </View>
-
-            <View
-              style={
-                styles.actionTextContainer
-              }
-            >
-              <Text style={styles.actionTitle}>
-                {t('home.addStock')}
-              </Text>
-
-              <Text
-                style={styles.actionSubtitle}
-              >
-                {t(
-                  'home.addStockDescription'
-                )}
-              </Text>
-            </View>
-
-            <Text
-              style={styles.actionChevron}
-            >
-              ›
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.actionCard,
-              pressed &&
-                styles.actionCardPressed,
-            ]}
-            onPress={() =>
-              router.push('/shopping-list')
-            }
-          >
-            <View style={styles.actionIconBox}>
-              <Text style={styles.actionIcon}>
-                📝
-              </Text>
-            </View>
-
-            <View
-              style={
-                styles.actionTextContainer
-              }
-            >
-              <Text style={styles.actionTitle}>
-                {t('home.shoppingList')}
-              </Text>
-
-              <Text
-                style={styles.actionSubtitle}
-              >
-                {t(
-                  'home.shoppingDescription'
-                )}
-              </Text>
-            </View>
-
-            <Text
-              style={styles.actionChevron}
-            >
-              ›
-            </Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Smart insight</Text>
+          <Pressable onPress={() => router.push('/ai-shopping')}>
+            <Text style={styles.link}>View plan</Text>
           </Pressable>
         </View>
 
-        {/* Voice Section */}
-        <View style={styles.voiceSection}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.voiceButton,
-              pressed &&
-                styles.voiceButtonPressed,
-            ]}
-            onPress={() =>
-              router.push('/voice')
-            }
-          >
-            <Text style={styles.voiceIcon}>
-              🎤
+        <Pressable
+          style={[styles.insightCard, !insight && styles.insightHealthy]}
+          onPress={() => router.push(insight ? '/low-stock' : '/inventory')}
+        >
+          <View style={[styles.insightIcon, !insight && styles.insightIconHealthy]}>
+            <Ionicons
+              name={insight ? 'warning-outline' : 'checkmark-circle-outline'}
+              size={22}
+              color={insight ? '#9A6700' : KadaiColors.greenDark}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.insightTitle}>{insight ? insight.name : 'Inventory is healthy'}</Text>
+            <Text style={styles.insightText}>
+              {insight
+                ? `${insight.quantity} units left. Reorder threshold is ${insight.low_stock_threshold}.`
+                : 'No products are currently at or below their reorder threshold.'}
             </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={KadaiColors.muted} />
+        </Pressable>
+
+        <Text style={styles.sectionTitle}>Quick actions</Text>
+        <View style={styles.quickGrid}>
+          <QuickAction icon="mic-outline" label="Voice sale" onPress={() => router.push('/voice')} />
+          <QuickAction icon="scan-outline" label="Scan invoice" onPress={() => router.push('/invoice-ai')} />
+          <QuickAction icon="cube-outline" label="Stock" onPress={() => router.push('/inventory')} />
+          <QuickAction icon="sparkles-outline" label="Restock" onPress={() => router.push('/ai-shopping')} />
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Recent activity</Text>
+          <Pressable onPress={() => router.push('/inventory')}>
+            <Text style={styles.link}>Inventory</Text>
           </Pressable>
+        </View>
 
-          <Text style={styles.voiceTitle}>
-            {t('home.tapSpeak')}
-          </Text>
-
-          <Text style={styles.voiceSubtitle}>
-            {t('home.voiceDescription')}
-          </Text>
+        <View style={styles.activityCard}>
+          {data?.history?.length ? (
+            data.history.slice(0, 3).map((sale, index) => (
+              <View key={sale.sale_id} style={[styles.activityRow, index !== 0 && styles.activityBorder]}>
+                <View style={styles.activityIcon}>
+                  <Ionicons name="cart-outline" size={18} color={KadaiColors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activityTitle}>Sold {sale.quantity} {sale.product_name}</Text>
+                  <Text style={styles.activityMeta}>{money(sale.total_amount)}</Text>
+                </View>
+                <Text style={styles.activityTime}>
+                  {new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyActivity}>
+              <Ionicons name="time-outline" size={22} color={KadaiColors.muted} />
+              <Text style={styles.emptyActivityText}>No recent sales recorded yet.</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
+
+      <KadaiBottomNav />
     </SafeAreaView>
   );
 }
 
+function MetricCard({ icon, value, label, attention = false }: { icon: any; value: string; label: string; attention?: boolean }) {
+  return (
+    <View style={styles.metricCard}>
+      <View style={[styles.metricIcon, attention && styles.metricIconAttention]}>
+        <Ionicons name={icon} size={18} color={attention ? '#9A6700' : KadaiColors.primary} />
+      </View>
+      <Text style={styles.metricValue} numberOfLines={1}>{value}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function QuickAction({ icon, label, onPress }: { icon: any; label: string; onPress: () => void }) {
+  return (
+    <Pressable style={({ pressed }) => [styles.quickAction, pressed && { opacity: 0.8 }]} onPress={onPress}>
+      <View style={styles.quickIcon}>
+        <Ionicons name={icon} size={22} color={KadaiColors.primary} />
+      </View>
+      <Text style={styles.quickLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F4F9F6',
-  },
-
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop:
-      Platform.OS === 'ios' ? 20 : 40,
-    paddingBottom: 40,
-  },
-
-  topArea: {
-    marginBottom: 24,
-  },
-
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  logoEmoji: {
-    fontSize: 24,
-    marginRight: 8,
-  },
-
-  appName: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F3D26',
-    letterSpacing: -0.3,
-  },
-
-  notificationButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-
-  notificationIcon: {
-    fontSize: 20,
-  },
-
-  greetingContainer: {
-    marginTop: 8,
-  },
-
-  greeting: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1A2E24',
-    marginBottom: 4,
-  },
-
-  subtitle: {
-    fontSize: 16,
-    color: '#6B8276',
-    fontWeight: '500',
-  },
-
-  connectionBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-  },
-
-  connectionOnline: {
-    backgroundColor: '#E9F8EF',
-    borderColor: '#BFE8CE',
-  },
-
-  connectionOffline: {
-    backgroundColor: '#FDEDEC',
-    borderColor: '#F5C6C2',
-  },
-
-  connectionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-
-  connectionDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    marginRight: 8,
-  },
-
-  connectionText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-
-  retryConnection: {
-    minWidth: 58,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  retryConnectionText: {
-    color: '#A93226',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FDEDEC',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#FADBD8',
-  },
-
-  errorIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-
-  errorText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#C0392B',
-    fontWeight: '500',
-  },
-
-  alertCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF8EB',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#FBE8C9',
-  },
-
-  alertCardPressed: {
-    backgroundColor: '#FDF2DC',
-    transform: [{ scale: 0.99 }],
-  },
-
-  alertIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#FDECC8',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-
-  alertIcon: {
-    fontSize: 20,
-  },
-
-  alertTextContainer: {
-    flex: 1,
-  },
-
-  alertTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#7C5E19',
-    marginBottom: 2,
-  },
-
-  alertSubtitle: {
-    fontSize: 13,
-    color: '#9C7A27',
-    fontWeight: '500',
-  },
-
-  alertChevron: {
-    fontSize: 22,
-    color: '#9C7A27',
-    fontWeight: '600',
-    paddingLeft: 4,
-  },
-
-  salesCard: {
-    backgroundColor: '#22A05B',
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 24,
-    shadowColor: '#22A05B',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-
-  salesCardPressed: {
-    opacity: 0.96,
-    transform: [{ scale: 0.99 }],
-  },
-
-  salesHeading: {
-    color: '#D1F0E0',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-
-  salesAmount: {
-    color: '#FFFFFF',
-    fontSize: 36,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-
-  demoBadge: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor:
-      'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-
-  demoText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
-  liveBadge: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    backgroundColor:
-      'rgba(255, 255, 255, 0.25)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-
-  liveText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-
-  actionsContainer: {
-    gap: 16,
-    marginBottom: 32,
-  },
-
-  actionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E8F0EA',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-
-  actionCardPressed: {
-    backgroundColor: '#F8FAF9',
-    borderColor: '#DFE8E2',
-    transform: [{ scale: 0.98 }],
-  },
-
-  actionIconBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: '#F0F9F4',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-
-  actionIcon: {
-    fontSize: 26,
-  },
-
-  actionTextContainer: {
-    flex: 1,
-  },
-
-  actionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#2A3F34',
-    marginBottom: 4,
-    letterSpacing: 0.2,
-  },
-
-  actionSubtitle: {
-    fontSize: 14,
-    color: '#6B8276',
-    fontWeight: '500',
-  },
-
-  actionChevron: {
-    fontSize: 22,
-    color: '#9DB3A7',
-    fontWeight: '600',
-    paddingLeft: 8,
-  },
-
-  voiceSection: {
-    alignItems: 'center',
-    marginTop: 10,
-  },
-
-  voiceButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#1C8A4D',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    shadowColor: '#1C8A4D',
-    shadowOffset: {
-      width: 0,
-      height: 6,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-
-  voiceButtonPressed: {
-    backgroundColor: '#157540',
-    transform: [{ scale: 0.95 }],
-  },
-
-  voiceIcon: {
-    fontSize: 32,
-  },
-
-  voiceTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A2E24',
-    marginBottom: 6,
-  },
-
-  voiceSubtitle: {
-    fontSize: 14,
-    color: '#6B8276',
-    textAlign: 'center',
-    fontWeight: '400',
-    paddingHorizontal: 20,
-    lineHeight: 20,
-  },
+  container: { flex: 1, backgroundColor: KadaiColors.background },
+  scroll: { flex: 1 },
+  content: { padding: 20, paddingBottom: 28, gap: 18 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  brand: { fontSize: 28, fontWeight: '900', color: KadaiColors.primary, letterSpacing: -0.7 },
+  tagline: { color: KadaiColors.text2, fontSize: 13, marginTop: 1, fontWeight: '600' },
+  profileButton: { width: 44, height: 44, borderRadius: 15, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: KadaiColors.border, alignItems: 'center', justifyContent: 'center' },
+  greetingBlock: { marginTop: 2 },
+  greeting: { fontSize: 25, fontWeight: '900', color: KadaiColors.text, letterSpacing: -0.5 },
+  greetingSub: { fontSize: 14, color: KadaiColors.text2, marginTop: 4, lineHeight: 20 },
+  errorCard: { backgroundColor: KadaiColors.redSoft, borderColor: '#F8CACA', borderWidth: 1, borderRadius: KadaiRadius.large, padding: 14, flexDirection: 'row', gap: 10, alignItems: 'center' },
+  errorTitle: { fontSize: 13, fontWeight: '900', color: KadaiColors.redDark },
+  errorText: { fontSize: 12, color: '#934139', marginTop: 2 },
+  retry: { fontSize: 12, fontWeight: '900', color: KadaiColors.redDark },
+  aiHero: { backgroundColor: KadaiColors.primary, borderRadius: KadaiRadius.xl, padding: 20, overflow: 'hidden', ...KadaiShadow },
+  aiHeroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
+  aiEyebrow: { color: '#A7F3D0', fontWeight: '900', fontSize: 11, letterSpacing: 1.2 },
+  aiTitle: { color: '#FFFFFF', fontWeight: '900', fontSize: 21, marginTop: 5, maxWidth: 240, lineHeight: 27 },
+  micCircle: { width: 54, height: 54, borderRadius: 18, backgroundColor: '#22A05B', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#48C77D' },
+  aiExample: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', marginTop: 20 },
+  aiHint: { color: '#CDEDD8', fontSize: 12, marginTop: 6 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 18 },
+  chip: { borderRadius: KadaiRadius.pill, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
+  chipText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '700' },
+  sectionLabel: { color: KadaiColors.muted, fontWeight: '900', fontSize: 11, letterSpacing: 1.2, marginTop: 2 },
+  loadingCard: { minHeight: 100, backgroundColor: '#FFFFFF', borderRadius: KadaiRadius.large, alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: KadaiColors.border },
+  loadingText: { color: KadaiColors.text2, fontSize: 13, fontWeight: '600' },
+  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  metricCard: { width: '48.4%', backgroundColor: '#FFFFFF', borderRadius: KadaiRadius.large, borderWidth: 1, borderColor: KadaiColors.border, padding: 14, ...KadaiShadow },
+  metricIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: KadaiColors.mintSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  metricIconAttention: { backgroundColor: KadaiColors.amberSoft },
+  metricValue: { fontSize: 20, fontWeight: '900', color: KadaiColors.text, letterSpacing: -0.4 },
+  metricLabel: { marginTop: 3, fontSize: 12, color: KadaiColors.text2, fontWeight: '600' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { fontSize: 17, fontWeight: '900', color: KadaiColors.text, letterSpacing: -0.2 },
+  link: { color: KadaiColors.greenDark, fontSize: 12, fontWeight: '900' },
+  insightCard: { backgroundColor: KadaiColors.amberSoft, borderRadius: KadaiRadius.large, borderWidth: 1, borderColor: '#F7D898', padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  insightHealthy: { backgroundColor: KadaiColors.mintSoft, borderColor: '#CFE7D5' },
+  insightIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#FFE8B3', alignItems: 'center', justifyContent: 'center' },
+  insightIconHealthy: { backgroundColor: KadaiColors.mint },
+  insightTitle: { fontSize: 14, fontWeight: '900', color: KadaiColors.text },
+  insightText: { fontSize: 12, color: KadaiColors.text2, marginTop: 3, lineHeight: 17 },
+  quickGrid: { flexDirection: 'row', gap: 9 },
+  quickAction: { flex: 1, minHeight: 84, backgroundColor: '#FFFFFF', borderRadius: KadaiRadius.large, borderWidth: 1, borderColor: KadaiColors.border, alignItems: 'center', justifyContent: 'center', gap: 7 },
+  quickIcon: { width: 37, height: 37, borderRadius: 12, backgroundColor: KadaiColors.mintSoft, alignItems: 'center', justifyContent: 'center' },
+  quickLabel: { fontSize: 10.5, color: KadaiColors.text, fontWeight: '800', textAlign: 'center' },
+  activityCard: { backgroundColor: '#FFFFFF', borderRadius: KadaiRadius.large, borderWidth: 1, borderColor: KadaiColors.border, paddingHorizontal: 14, ...KadaiShadow },
+  activityRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 11 },
+  activityBorder: { borderTopWidth: 1, borderTopColor: '#EDF2EE' },
+  activityIcon: { width: 38, height: 38, borderRadius: 13, backgroundColor: KadaiColors.mintSoft, alignItems: 'center', justifyContent: 'center' },
+  activityTitle: { fontSize: 13, fontWeight: '800', color: KadaiColors.text },
+  activityMeta: { fontSize: 11.5, color: KadaiColors.text2, marginTop: 3 },
+  activityTime: { fontSize: 10.5, color: KadaiColors.muted, fontWeight: '700' },
+  emptyActivity: { minHeight: 84, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  emptyActivityText: { color: KadaiColors.muted, fontSize: 12.5, fontWeight: '600' },
 });
