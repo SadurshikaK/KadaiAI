@@ -1,5 +1,7 @@
 import { API_BASE_URL } from './api';
 import { Platform } from 'react-native';
+import { File } from 'expo-file-system';
+import { fetch as expoFetch } from 'expo/fetch';
 
 export type AIIntent =
   | 'sale'
@@ -126,8 +128,12 @@ export async function scanInvoice(
   language: string,
   shopId: number = 1
 ): Promise<InvoiceResult> {
-  const formData = new FormData();
+  const url =
+    `${API_BASE_URL}/api/ai/invoice-ocr`
+    + `?language=${encodeURIComponent(language)}`
+    + `&shop_id=${shopId}`;
 
+  // WEB
   if (Platform.OS === 'web') {
     const imageResponse = await fetch(uri);
 
@@ -146,31 +152,42 @@ export async function scanInvoice(
           ? 'webp'
           : 'jpg';
 
+    const formData = new FormData();
+
     formData.append(
       'file',
       blob,
       `invoice.${extension}`
     );
-  } else {
-    formData.append(
-      'file',
-      {
-        uri,
-        name: 'invoice.jpg',
-        type: 'image/jpeg',
-      } as any
-    );
-  }
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/ai/invoice-ocr`
-      + `?language=${encodeURIComponent(language)}`
-      + `&shop_id=${shopId}`,
-    {
+    const response = await fetch(url, {
       method: 'POST',
       body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        await getError(response)
+      );
     }
+
+    return response.json();
+  }
+
+  // ANDROID / IOS
+  const file = new File(uri);
+
+  const formData = new FormData();
+
+  formData.append(
+    'file',
+    file as any
   );
+
+  const response = await expoFetch(url, {
+    method: 'POST',
+    body: formData,
+  });
 
   if (!response.ok) {
     throw new Error(
