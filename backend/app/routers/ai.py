@@ -1,4 +1,5 @@
 import math
+import hashlib
 
 import re
 
@@ -41,6 +42,7 @@ from app.database import get_db
 from app.models.product import Product
 
 from app.models.sale import Sale
+from app.models.invoice_scan import InvoiceScan
 
 from app.services.stock_service import StockService
 
@@ -2191,342 +2193,195 @@ def recommendations(
 
 # ============================================================
 
-@router.post(
+# OCR matches are similarity scores, NOT calibrated OCR probabilities.
+# The API only includes high-confidence candidates in detected_items.
+# Medium-confidence matches remain in review_items until explicitly accepted.
 
-    "/invoice-ocr"
+def classify_ocr_product_match(score: float) -> str:
+    if score >= 0.80:
+        return "MATCHED"
+    if score >= 0.60:
+        return "NEEDS_REVIEW"
+    return "UNMATCHED"
 
-)
 
+def best_ocr_product_match(line: str, products: list[Product]):
+    """Return the best candidate even below the review threshold.
+
+    This is separate from voice find_product() which deliberately drops
+    weak matches. Here the UI needs to know which lines were uncertain.
+    """
+    normalized = normalize(line)
+    best_product = None
+    best_score = 0.0
+    for product in products:
+        for alias in aliases_for_product(product):
+            alias_text = normalize(alias)
+            if not alias_text:
+                continue
+            # Boundary checks prevent e.g. 'tea' matching 'detail'.
+            exact = re.search(
+                r"(?<!\w)" + re.escape(alias_text) + r"(?!\w)", normalized
+            ) is not None
+            if exact:
+                score = 100.0
+            elif len(alias_text) < 4:
+                continue  # Avoid unsafe fuzzy matches for short aliases.
+            else:
+                score = float(fuzz.partial_ratio(alias_text, normalized))
+            if score > best_score:
+                best_score = score
+                best_product = product
+    return best_product, best_score / 100.0
+
+
+@router.post("/invoice-ocr")
 async def invoice_ocr(
-
     file: UploadFile = File(...),
-
     language: str = Query("eng"),
-
-    shop_id: int = Query(
-
-        1,
-
-        gt=0,
-
-    ),
-
+    shop_id: int = Query(1, gt=0),
     db: Session = Depends(get_db),
-
 ):
+    """Read an invoice, return review candidates, and warn about exact repeats.
 
+    IMPORTANT: This endpoint never creates STOCK_IN transactions or
+    changes quantities. The final stock-add API requires a separate,
+    explicit human confirmation in the mobile app.
     """
-
-    Extract text from a supplier invoice and suggest known
-
-    inventory products and quantities.
-
-    IMPORTANT:
-
-    This endpoint does not modify stock.
-
-    Detected items must be manually reviewed and confirmed
-
-    by the user before the stock-add API is called.
-
-    """
-
     try:
-
-        from PIL import (
-
-            Image,
-
-            ImageEnhance,
-
-            ImageOps,
-
-        )
-
+        from PIL import Image, ImageEnhance, ImageOps
         import pytesseract
-
-    except ImportError:
-
+    except ImportError as exc:
         raise HTTPException(
+            status_code=500, detail="Install Pillow and pytesseract."
+        ) from exc
 
-            status_code=500,
-
-            detail=(
-
-                "Install Pillow and pytesseract."
-
-            ),
-
-        )
-
-    allowed_languages = {
-
-        "eng",
-
-        "tam",
-
-        "sin",
-
-        "eng+tam",
-
-        "eng+sin",
-
-        "eng+tam+sin",
-
-    }
-
-    if language not in allowed_languages:
-
+    if language not in {
+        "eng", "tam", "sin", "eng+tam", "eng+sin", "eng+tam+sin"
+    }:
         language = "eng"
 
     content = await file.read()
-
     if not content:
+        raise HTTPException(status_code=400, detail="Uploaded invoice is empty.")
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Invoice image exceeds 20 MB.")
 
-        raise HTTPException(
-
-            status_code=400,
-
-            detail="Uploaded invoice is empty.",
-
-        )
-
-    try:
-
-        image = (
-
-            Image.open(
-
-                BytesIO(content)
-
-            )
-
-            .convert("L")
-
-        )
-
-        image = ImageOps.autocontrast(
-
-            image
-
-        )
-
-        image = (
-
-            ImageEnhance
-
-            .Contrast(image)
-
-            .enhance(1.4)
-
-        )
-
-        text = (
-
-            pytesseract
-
-            .image_to_string(
-
-                image,
-
-                lang=language,
-
-            )
-
-        )
-
-    except pytesseract.TesseractNotFoundError:
-
-        raise HTTPException(
-
-            status_code=503,
-
-            detail=(
-
-                "Tesseract OCR program "
-
-                "is not installed."
-
-            ),
-
-        )
-
-    except Exception as e:
-
-        raise HTTPException(
-
-            status_code=400,
-
-            detail=str(e),
-
-        )
-
-    lines = [
-
-        line.strip()
-
-        for line in text.splitlines()
-
-        if line.strip()
-
-    ]
-
-    candidate_lines = [
-
-        line
-
-        for line in lines
-
-        if re.search(
-
-            r"\d",
-
-            line,
-
-        )
-
-    ]
-
-    products = (
-
-        db.query(Product)
-
+    image_hash = hashlib.sha256(content).hexdigest()
+    previous_scan = (
+        db.query(InvoiceScan)
         .filter(
-
-            Product.shop_id == shop_id
-
+            InvoiceScan.shop_id == shop_id,
+            InvoiceScan.content_sha256 == image_hash,
         )
-
-        .all()
-
+        .order_by(InvoiceScan.scanned_at.desc(), InvoiceScan.id.desc())
+        .first()
     )
 
-    detected_items = []
+    try:
+        image = Image.open(BytesIO(content)).convert("L")
+        if image.width * image.height > 20_000_000:
+            raise HTTPException(status_code=413, detail="Invoice image is too large.")
+        image = ImageOps.autocontrast(image)
+        image = ImageEnhance.Contrast(image).enhance(1.4)
+        text = pytesseract.image_to_string(image, lang=language)
+    except HTTPException:
+        raise
+    except pytesseract.TesseractNotFoundError as exc:
+        raise HTTPException(
+            status_code=503, detail="Tesseract OCR program is not installed."
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400, detail="Unable to read the invoice image."
+        ) from exc
 
-    seen_product_ids = set()
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    candidate_lines = [line for line in lines if re.search(r"\d", line)]
+    products = (
+        db.query(Product)
+        .filter(Product.shop_id == shop_id)
+        .all()
+    )
+    best_by_product = {}
+    unmatched_items = []
 
     for line in candidate_lines:
+        product, score = best_ocr_product_match(line, products)
+        quantity = extract_quantity(normalize(line))
+        status = classify_ocr_product_match(score)
 
-        normalized_line = normalize(
-
-            line
-
-        )
-
-        product, score = find_product(
-
-            normalized_line,
-
-            products,
-
-        )
-
-        quantity = extract_quantity(
-
-            normalized_line
-
-        )
-
-        if not product:
-
+        if not product or status == "UNMATCHED" or not quantity:
+            unmatched_items.append({
+                "source_line": line,
+                "match_status": "UNMATCHED",
+                "reason": (
+                    "No safe inventory product match" if status == "UNMATCHED"
+                    else "No valid quantity detected"
+                ),
+            })
             continue
 
-        # OCR product matching uses a stricter threshold
+        item = {
+            "product_id": product.id,
+            "product_name": product.name,
+            "quantity": quantity,
+            "source_line": line,
+            "confidence": round(score, 3),
+            "match_status": status,
+            "requires_explicit_acceptance": status == "NEEDS_REVIEW",
+        }
+        prior = best_by_product.get(product.id)
+        if prior is None or item["confidence"] > prior["confidence"]:
+            best_by_product[product.id] = item
 
-        # than normal voice parsing.
+    # Retain the original detected_items contract for current Android app.
+    # Lower-confidence candidates are separate and never submitted by default.
+    detected_items = [
+        item for item in best_by_product.values()
+        if item["match_status"] == "MATCHED"
+    ]
+    review_items = [
+        item for item in best_by_product.values()
+        if item["match_status"] == "NEEDS_REVIEW"
+    ]
 
-        if score < 80:
-
-            continue
-
-        if not quantity:
-
-            continue
-
-        if product.id in seen_product_ids:
-
-            continue
-
-        detected_items.append(
-
-            {
-
-                "product_id":
-
-                    product.id,
-
-                "product_name":
-
-                    product.name,
-
-                "quantity":
-
-                    quantity,
-
-                "source_line":
-
-                    line,
-
-                # This is PRODUCT MATCH confidence,
-
-                # not calibrated OCR confidence.
-
-                "confidence":
-
-                    round(
-
-                        score / 100,
-
-                        2,
-
-                    ),
-
-            }
-
+    try:
+        db.add(InvoiceScan(shop_id=shop_id, content_sha256=image_hash))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to record invoice scan for duplicate checking.",
         )
 
-        seen_product_ids.add(
-
-            product.id
-
-        )
+    previous_timestamp = (
+        previous_scan.scanned_at.isoformat()
+        if previous_scan is not None and previous_scan.scanned_at
+        else None
+    )
+    is_duplicate = previous_scan is not None
 
     return {
-
-        "language":
-
-            language,
-
-        "shop_id":
-
-            shop_id,
-
-        "raw_text":
-
-            text.strip(),
-
-        "lines":
-
-            lines,
-
-        "candidate_lines":
-
-            candidate_lines,
-
-        "detected_items":
-
-            detected_items,
-
-        "note":
-
-            (
-
-                "Detected products and quantities "
-
-                "are suggestions only. Review and "
-
-                "confirm them before updating inventory."
-
-            ),
-
+        "language": language,
+        "shop_id": shop_id,
+        "raw_text": text.strip(),
+        "lines": lines,
+        "candidate_lines": candidate_lines,
+        "detected_items": detected_items,
+        "review_items": review_items,
+        "unmatched_items": unmatched_items,
+        "possible_duplicate": is_duplicate,
+        "previous_scanned_at": previous_timestamp,
+        "duplicate_warning": (
+            "This exact image was scanned previously. Check inventory before accepting it again."
+            if is_duplicate else None
+        ),
+        "note": (
+            "Only MATCHED items appear in detected_items. NEEDS_REVIEW "
+            "items require separate explicit acceptance; UNMATCHED "
+            "items must never update stock automatically. All stock "
+            "changes require human confirmation."
+        ),
     }

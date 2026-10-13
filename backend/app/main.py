@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.routers.ai import router as ai_router
+from app.routers.activity import router as activity_router
+from app.routers.restock_demo import router as restock_demo_router
 
 from app.config import settings
 from app.database import init_db
@@ -127,3 +129,5 @@ app.include_router(inventory_router)
 app.include_router(dashboard_router)
 app.include_router(seed_router)
 app.include_router(ai_router)
+app.include_router(activity_router)
+app.include_router(restock_demo_router)
