@@ -25,6 +25,7 @@ import KadaiBottomNav from '../components/kadai-bottom-nav';
 import { useLanguage } from '../context/LanguageContext';
 import { addStock, createSale } from '../services/api';
 import { ParsedCommand, parseVoiceCommand } from '../services/ai';
+import { logActivity } from '../services/activity';
 import { KadaiColors, KadaiRadius, KadaiShadow } from '../constants/kadai-theme';
 
 const localeMap = {
@@ -198,6 +199,12 @@ export default function VoiceScreen() {
         });
 
         speak(`${response.product_name} stock is now ${response.remaining_stock}.`);
+        logActivity({
+          type: 'VOICE_ACTION',
+          title: `Voice sale: Sold ${command.quantity} ${response.product_name}`,
+          subtitle: `Confidence: ${Math.round(command.confidence * 100)}%`,
+          amount: `Rs. ${response.total_amount}`,
+        });
         setSuccessMsg({
           title: 'Sale confirmed',
           product: response.product_name,
@@ -212,6 +219,12 @@ export default function VoiceScreen() {
         });
 
         speak(`${response.product_name} stock is now ${response.new_stock}.`);
+        logActivity({
+          type: 'VOICE_ACTION',
+          title: `Voice restock: Added ${command.quantity} ${response.product_name}`,
+          subtitle: `Confidence: ${Math.round(command.confidence * 100)}%`,
+          amount: `+${command.quantity} units`,
+        });
         setSuccessMsg({
           title: 'Stock added',
           product: response.product_name,

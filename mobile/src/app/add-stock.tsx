@@ -15,6 +15,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { useLanguage } from '../context/LanguageContext';
 import { getProducts, addStock, Product, StockAddResponse } from '../services/api';
+import { logActivity } from '../services/activity';
 
 const getEmoji = (name: string, category: string) => {
   const str = (name + " " + category).toLowerCase();
@@ -116,6 +117,13 @@ export default function AddStockScreen() {
 
       setStockResult(res);
       setShowConfirmModal(false);
+
+      logActivity({
+        type: 'STOCK_IN',
+        title: `Added ${quantity} units: ${res.product_name}`,
+        subtitle: note.trim() || 'Supplier delivery',
+        amount: `+${quantity} units`,
+      });
 
       // Update local product quantity
       setSelectedProduct((prev) => (prev ? { ...prev, quantity: res.new_stock } : null));

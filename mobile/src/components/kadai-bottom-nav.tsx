@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, usePathname } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   KadaiColors,
@@ -56,12 +57,13 @@ const items: NavItem[] = [
 
 export default function KadaiBottomNav() {
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, 8);
 
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, { paddingBottom: bottomPadding, minHeight: 64 + bottomPadding }]}>
       {items.map((item) => {
-        const active =
-          pathname === item.route;
+        const active = pathname === item.route;
 
         return (
           <Pressable
@@ -74,26 +76,18 @@ export default function KadaiBottomNav() {
             }}
             accessibilityRole="button"
             accessibilityLabel={item.label}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           >
             <View
               style={[
                 styles.iconWrap,
-                item.center &&
-                  styles.centerIconWrap,
-                active &&
-                  !item.center &&
-                  styles.activeIconWrap,
+                item.center && styles.centerIconWrap,
+                active && !item.center && styles.activeIconWrap,
               ]}
             >
               <Ionicons
-                name={
-                  active
-                    ? item.activeIcon
-                    : item.icon
-                }
-                size={
-                  item.center ? 24 : 21
-                }
+                name={active ? item.activeIcon : item.icon}
+                size={item.center ? 24 : 21}
                 color={
                   item.center
                     ? '#FFFFFF'
@@ -107,9 +101,9 @@ export default function KadaiBottomNav() {
             <Text
               style={[
                 styles.label,
-                active &&
-                  styles.activeLabel,
+                active && styles.activeLabel,
               ]}
+              numberOfLines={1}
             >
               {item.label}
             </Text>
@@ -122,13 +116,11 @@ export default function KadaiBottomNav() {
 
 const styles = StyleSheet.create({
   bar: {
-    minHeight: 70,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E6EEE8',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingTop: 8,
-    paddingBottom: 8,
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-around',
@@ -137,9 +129,11 @@ const styles = StyleSheet.create({
 
   item: {
     flex: 1,
+    minHeight: 46,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 4,
+    gap: 3,
+    paddingVertical: 2,
   },
 
   iconWrap: {
@@ -151,17 +145,15 @@ const styles = StyleSheet.create({
   },
 
   activeIconWrap: {
-    backgroundColor:
-      KadaiColors.mint,
+    backgroundColor: KadaiColors.mint,
   },
 
   centerIconWrap: {
     width: 50,
     height: 50,
     borderRadius: 18,
-    marginTop: -24,
-    backgroundColor:
-      KadaiColors.primary,
+    marginTop: -22,
+    backgroundColor: KadaiColors.primary,
     borderWidth: 4,
     borderColor: '#FFFFFF',
     ...KadaiShadow,
@@ -171,6 +163,7 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     color: '#718077',
     fontWeight: '700',
+    textAlign: 'center',
   },
 
   activeLabel: {
