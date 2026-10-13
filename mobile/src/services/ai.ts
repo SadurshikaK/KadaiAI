@@ -7,6 +7,9 @@ export type AIIntent =
   | 'sale'
   | 'add_stock'
   | 'query_stock'
+  | 'query_low_stock'
+  | 'restock_advice'
+  | 'shop_summary'
   | 'unknown';
 
 export interface ParsedCommand {
@@ -32,6 +35,11 @@ export interface RecommendationItem {
   unit_cost: number;
   estimated_cost: number;
   reason: string;
+
+  // Optional forecast metadata from backend
+  forecast_method?: string | null;
+  history_days?: number | null;
+  validation_mae?: number | null;
 }
 
 export interface RecommendationResponse {
