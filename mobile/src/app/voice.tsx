@@ -31,6 +31,7 @@ import {
   getLowStockProducts,
 } from '../services/api';
 import { ParsedCommand, parseVoiceCommand } from '../services/ai';
+import { logActivity } from '../services/activity';
 import { KadaiColors, KadaiRadius, KadaiShadow } from '../constants/kadai-theme';
 
 const localeMap = {
@@ -393,6 +394,12 @@ export default function VoiceScreen() {
           response.remaining_stock
         );
 
+        logActivity({
+          type: 'VOICE_ACTION',
+          title: `Voice sale: Sold ${command.quantity} ${response.product_name}`,
+          subtitle: `Confidence: ${Math.round(command.confidence * 100)}%`,
+          amount: `Rs. ${response.total_amount}`,
+        });
         setSuccessMsg({
           title: t('voice.success_sale'),
           product: response.product_name,
@@ -411,6 +418,12 @@ export default function VoiceScreen() {
           response.new_stock
         );
 
+        logActivity({
+          type: 'VOICE_ACTION',
+          title: `Voice restock: Added ${command.quantity} ${response.product_name}`,
+          subtitle: `Confidence: ${Math.round(command.confidence * 100)}%`,
+          amount: `+${command.quantity} units`,
+        });
         setSuccessMsg({
           title: t('voice.success_add'),
           product: response.product_name,

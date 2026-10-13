@@ -15,6 +15,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { useLanguage } from '../context/LanguageContext';
 import { getProducts, createSale, Product, SaleResponse } from '../services/api';
+import { logActivity } from '../services/activity';
 
 const getEmoji = (name: string, category: string) => {
   const str = (name + " " + category).toLowerCase();
@@ -143,6 +144,14 @@ export default function SellProductScreen() {
 
       setSaleResult(res);
       setShowConfirmModal(false);
+
+      logActivity({
+        id: `sale_${res.id}`,
+        type: 'SALE',
+        title: `Sold ${quantity} ${res.product_name}`,
+        subtitle: `Remaining stock: ${res.remaining_stock}`,
+        amount: `Rs. ${res.total_amount}`,
+      });
 
       // Update local product quantity
       setSelectedProduct((prev) => (prev ? { ...prev, quantity: res.remaining_stock } : null));
