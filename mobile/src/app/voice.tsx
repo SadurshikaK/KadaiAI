@@ -59,30 +59,30 @@ function productIcon(name: string): any {
   const value = name.toLowerCase();
   if (
     value.includes('milk') ||
-    value.includes('à®ªà®¾à®²à¯') ||
-    value.includes('à¶šà·’à¶»à·’')
+    value.includes('பால்') ||
+    value.includes('කිරි')
   ) {
     return 'cafe-outline';
   }
   if (
     value.includes('biscuit') ||
     value.includes('cookie') ||
-    value.includes('à®ªà®¿à®¸à¯à®•à®Ÿà¯') ||
-    value.includes('à¶¶à·’à·ƒà·Šà¶šà¶§à·Š')
+    value.includes('பிஸ்கட்') ||
+    value.includes('බිස්කට්')
   ) {
     return 'fast-food-outline';
   }
   if (
     value.includes('soap') ||
-    value.includes('à®šà¯‹à®ªà¯à®ªà¯') ||
-    value.includes('à·ƒà¶¶à¶±à·Š')
+    value.includes('சோப்பு') ||
+    value.includes('සබන්')
   ) {
     return 'water-outline';
   }
   if (
     value.includes('rice') ||
-    value.includes('à®…à®°à®¿à®šà®¿') ||
-    value.includes('à·„à·à¶½à·Š')
+    value.includes('அரிசி') ||
+    value.includes('හාල්')
   ) {
     return 'basket-outline';
   }
@@ -189,9 +189,9 @@ export default function VoiceScreen() {
 
   const speakStockNow = (product: string, stock: number) => {
     if (language === 'Tamil') {
-      speak(`${product} à®‡à®°à¯à®ªà¯à®ªà¯ à®‡à®ªà¯à®ªà¯‹à®¤à¯ ${stock} à®…à®²à®•à¯à®•à®³à¯.`);
+      speak(`${product} இருப்பு இப்போது ${stock} அலகுகள்.`);
     } else if (language === 'Sinhala') {
-      speak(`${product} à¶­à·œà¶œà¶º à¶¯à·à¶±à·Š à¶’à¶šà¶š ${stock}à¶šà·’.`);
+      speak(`${product} තොගය දැන් ඒකක ${stock}කි.`);
     } else {
       speak(`${product} stock is now ${stock} units.`);
     }
@@ -230,24 +230,24 @@ export default function VoiceScreen() {
         'low stock',
         'restock',
         'shop today',
-        'à®ªà®¾à®²à¯ à®®à®¾',
-        'à®ªà®¿à®¸à¯à®•à®Ÿà¯',
-        'à®šà¯‹à®ªà¯à®ªà¯',
-        'à®…à®°à®¿à®šà®¿',
-        'à®µà®¿à®±à¯à®±à¯‡à®©à¯',
-        'à®µà®¿à®±à¯à®•',
-        'à®šà¯‡à®°à¯à®•à¯à®•',
-        'à®‡à®°à¯à®ªà¯à®ªà¯',
-        'à®•à¯à®±à¯ˆà®¨à¯à®¤ à®‡à®°à¯à®ªà¯à®ªà¯',
-        'à¶šà·’à¶»à·’ à¶´à·’à¶§à·’',
-        'à¶¶à·’à·ƒà·Šà¶šà¶§à·Š',
-        'à·ƒà¶¶à¶±à·Š',
-        'à·„à·à¶½à·Š',
-        'à·€à·’à¶šà·”à¶«à·”à·€à·',
-        'à·€à·’à¶šà·”à¶«à¶±à·Šà¶±',
-        'à¶‘à¶šà¶­à·” à¶šà¶»à¶±à·Šà¶±',
-        'à¶­à·œà¶œ',
-        'à¶…à¶©à·” à¶­à·œà¶œ',
+        'பால் மா',
+        'பிஸ்கட்',
+        'சோப்பு',
+        'அரிசி',
+        'விற்றேன்',
+        'விற்க',
+        'சேர்க்க',
+        'இருப்பு',
+        'குறைந்த இருப்பு',
+        'කිරි පිටි',
+        'බිස්කට්',
+        'සබන්',
+        'හාල්',
+        'විකුණුවා',
+        'විකුණන්න',
+        'එකතු කරන්න',
+        'තොග',
+        'අඩු තොග',
       ],
     });
   };
@@ -270,9 +270,9 @@ export default function VoiceScreen() {
         const stock = parsed.current_stock ?? 0;
 
         if (language === 'Tamil') {
-          speak(`${product} à®‡à®°à¯à®ªà¯à®ªà®¿à®²à¯ ${stock} à®…à®²à®•à¯à®•à®³à¯ à®‰à®³à¯à®³à®©.`);
+          speak(`${product} இருப்பில் ${stock} அலகுகள் உள்ளன.`);
         } else if (language === 'Sinhala') {
-          speak(`${product} à¶­à·œà¶œà¶ºà·š à¶’à¶šà¶š ${stock}à¶šà·Š à¶‡à¶­.`);
+          speak(`${product} තොගයේ ඒකක ${stock}ක් ඇත.`);
         } else {
           speak(`${product} has ${stock} units in stock.`);
         }
@@ -289,9 +289,9 @@ export default function VoiceScreen() {
 
         if (!items.length) {
           if (language === 'Tamil') {
-            speak('à®¤à®±à¯à®ªà¯‹à®¤à¯ à®•à¯à®±à¯ˆà®¨à¯à®¤ à®‡à®°à¯à®ªà¯à®ªà¯à®³à¯à®³ à®ªà¯Šà®°à¯à®Ÿà¯à®•à®³à¯ à®‡à®²à¯à®²à¯ˆ.');
+            speak('தற்போது குறைந்த இருப்புள்ள பொருட்கள் இல்லை.');
           } else if (language === 'Sinhala') {
-            speak('à¶¯à·à¶±à¶§ à¶…à¶©à·” à¶­à·œà¶œ à·ƒà·„à·’à¶­ à¶·à·à¶«à·Šà¶© à¶±à·œà¶¸à·à¶­.');
+            speak('දැනට අඩු තොග සහිත භාණ්ඩ නොමැත.');
           } else {
             speak('There are currently no low stock products.');
           }
@@ -304,9 +304,9 @@ export default function VoiceScreen() {
           .join(', ');
 
         if (language === 'Tamil') {
-          speak(`${items.length} à®ªà¯Šà®°à¯à®Ÿà¯à®•à®³à¯à®•à¯à®•à¯ à®•à®µà®©à®®à¯ à®¤à¯‡à®µà¯ˆ. ${names}.`);
+          speak(`${items.length} பொருட்களுக்கு கவனம் தேவை. ${names}.`);
         } else if (language === 'Sinhala') {
-          speak(`à¶·à·à¶«à·Šà¶© ${items.length}à¶šà¶§ à¶…à·€à¶°à·à¶±à¶º à¶…à·€à·à·Šâ€à¶ºà¶ºà·’. ${names}.`);
+          speak(`භාණ්ඩ ${items.length}කට අවධානය අවශ්‍යයි. ${names}.`);
         } else {
           speak(`${items.length} products need attention. ${names}.`);
         }
@@ -320,11 +320,11 @@ export default function VoiceScreen() {
 
         if (language === 'Tamil') {
           speak(
-            'à®‰à®™à¯à®•à®³à¯ à®‡à®°à¯à®ªà¯à®ªà¯à®®à¯ à®ªà®Ÿà¯à®œà¯†à®Ÿà¯à®Ÿà¯à®®à¯ à®…à®Ÿà®¿à®ªà¯à®ªà®Ÿà¯ˆà®¯à®¿à®²à¯ à®¸à¯à®®à®¾à®°à¯à®Ÿà¯ à®•à¯Šà®³à¯à®®à¯à®¤à®²à¯ à®¤à®¿à®Ÿà¯à®Ÿà®¤à¯à®¤à¯ˆ à®‰à®°à¯à®µà®¾à®•à¯à®•à®²à®¾à®®à¯.'
+            'உங்கள் இருப்பும் பட்ஜெட்டும் அடிப்படையில் ஸ்மார்ட் கொள்முதல் திட்டத்தை உருவாக்கலாம்.'
           );
         } else if (language === 'Sinhala') {
           speak(
-            'à¶”à¶¶à¶œà·š à¶­à·œà¶œà¶º à·ƒà·„ à¶…à¶ºà·€à·à¶º à¶…à¶±à·”à·€ à·ƒà·Šà¶¸à·à¶»à·Šà¶§à·Š à¶±à·à·€à¶­ à¶­à·œà¶œ à·ƒà·à¶½à·à·ƒà·Šà¶¸à¶šà·Š à·ƒà·‘à¶¯à·’à¶º à·„à·à¶š.'
+            'ඔබගේ තොගය සහ අයවැය අනුව ස්මාර්ට් නැවත තොග සැලැස්මක් සෑදිය හැක.'
           );
         } else {
           speak(
@@ -344,11 +344,11 @@ export default function VoiceScreen() {
 
         if (language === 'Tamil') {
           speak(
-            `à®‡à®©à¯à®±à¯ˆà®¯ à®µà®¿à®±à¯à®ªà®©à¯ˆ ${dashboard.today_sales} à®°à¯‚à®ªà®¾à®¯à¯. ${dashboard.sales_count} à®ªà®°à®¿à®µà®°à¯à®¤à¯à®¤à®©à¯ˆà®•à®³à¯ à®‰à®³à¯à®³à®©. ${dashboard.low_stock_count} à®ªà¯Šà®°à¯à®Ÿà¯à®•à®³à¯à®•à¯à®•à¯ à®•à®µà®©à®®à¯ à®¤à¯‡à®µà¯ˆ.`
+            `இன்றைய விற்பனை ${dashboard.today_sales} ரூபாய். ${dashboard.sales_count} பரிவர்த்தனைகள் உள்ளன. ${dashboard.low_stock_count} பொருட்களுக்கு கவனம் தேவை.`
           );
         } else if (language === 'Sinhala') {
           speak(
-            `à¶…à¶¯ à·€à·’à¶šà·”à¶«à·”à¶¸à·Š à¶»à·”à¶´à·’à¶ºà¶½à·Š ${dashboard.today_sales}. à¶œà¶±à·”à¶¯à·™à¶±à·” ${dashboard.sales_count}à¶šà·Š à¶‡à¶­. à¶·à·à¶«à·Šà¶© ${dashboard.low_stock_count}à¶šà¶§ à¶…à·€à¶°à·à¶±à¶º à¶…à·€à·à·Šâ€à¶ºà¶ºà·’.`
+            `අද විකුණුම් රුපියල් ${dashboard.today_sales}. ගනුදෙනු ${dashboard.sales_count}ක් ඇත. භාණ්ඩ ${dashboard.low_stock_count}කට අවධානය අවශ්‍යයි.`
           );
         } else {
           speak(
@@ -533,8 +533,8 @@ export default function VoiceScreen() {
                   {item === 'English'
                     ? 'EN'
                     : item === 'Tamil'
-                      ? 'à®¤à®®à®¿à®´à¯'
-                      : 'à·ƒà·’à¶‚à·„à¶½'}
+                      ? 'தமிழ்'
+                      : 'සිංහල'}
                 </Text>
               </Pressable>
             );
@@ -1011,7 +1011,9 @@ export default function VoiceScreen() {
               </View>
             )}
 
-            {lowConfidence && (
+            {lowConfidence &&
+              (command.intent === 'sale' ||
+                command.intent === 'add_stock') && (
               <View
                 style={
                   styles.lowConfidenceCard
@@ -1028,10 +1030,10 @@ export default function VoiceScreen() {
                   }
                 >
                   {language === 'Tamil'
-                    ? 'à®‡à®¨à¯à®¤ à®•à®Ÿà¯à®Ÿà®³à¯ˆà®¯à®¿à®²à¯ à®ªà¯‹à®¤à¯à®®à®¾à®© à®¨à®®à¯à®ªà®¿à®•à¯à®•à¯ˆ à®‡à®²à¯à®²à¯ˆ. à®‡à®°à¯à®ªà¯à®ªà¯ à®®à®¾à®±à¯à®±à®®à¯ à®®à¯à®Ÿà®•à¯à®•à®ªà¯à®ªà®Ÿà¯à®Ÿà¯à®³à¯à®³à®¤à¯.'
+                    ? 'இந்த கட்டளையில் போதுமான நம்பிக்கை இல்லை. இருப்பு மாற்றம் முடக்கப்பட்டுள்ளது.'
                     : language ===
                         'Sinhala'
-                      ? 'à¶¸à·™à¶¸ à·€à·’à¶°à·à¶±à¶º à¶´à·’à·…à·’à¶¶à¶³ à·€à·’à·à·Šà·€à·à·ƒà¶º à¶´à·Šâ€à¶»à¶¸à·à¶«à·€à¶­à·Š à¶±à·œà·€à·š. à¶­à·œà¶œ à¶ºà·à·€à¶­à·Šà¶šà·à¶½à·“à¶± à¶šà·’à¶»à·“à¶¸ à¶…à¶šà·Šâ€à¶»à·’à¶º à¶šà¶» à¶‡à¶­.'
+                      ? 'මෙම විධානය පිළිබඳ විශ්වාසය ප්‍රමාණවත් නොවේ. තොග යාවත්කාලීන කිරීම අක්‍රිය කර ඇත.'
                       : 'I am not confident enough to change inventory. Inventory update is disabled.'}
                 </Text>
               </View>
@@ -1082,7 +1084,7 @@ export default function VoiceScreen() {
                         >
                           {item.quantity}{' '}
                           {t('voice.units')}
-                          {' â€¢ '}
+                          {' • '}
                           {t(
                             'voice.reorder_at'
                           )}{' '}
@@ -1526,7 +1528,7 @@ function Example({
   return (
     <View style={styles.exampleChip}>
       <Text style={styles.exampleText}>
-        â€œ{text}â€
+        {`"${text}"`}
       </Text>
     </View>
   );

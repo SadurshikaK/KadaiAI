@@ -24,6 +24,47 @@ import { KadaiColors, KadaiRadius, KadaiShadow } from '../constants/kadai-theme'
 function money(value: number) {
   return `Rs. ${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
+function forecastMeta(item: RecommendationItem) {
+  const reason = item.reason.toLowerCase();
+  const method = item.forecast_method?.toLowerCase();
+
+  if (
+    method === 'no_history' ||
+    reason.includes('cold-start')
+  ) {
+    return {
+      forecast: 'No history',
+      method: 'Cold-start stock rule',
+    };
+  }
+
+  if (
+    method === 'moving_average_7d' ||
+    reason.includes('moving average') ||
+    reason.includes('moving_average')
+  ) {
+    return {
+      forecast: `${item.forecast_demand.toFixed(1)} units`,
+      method: '7-day moving average',
+    };
+  }
+
+  if (
+    method === 'random_forest' ||
+    reason.includes('random forest') ||
+    reason.includes('random_forest')
+  ) {
+    return {
+      forecast: `${item.forecast_demand.toFixed(1)} units`,
+      method: 'Random Forest',
+    };
+  }
+
+  return {
+    forecast: `${item.forecast_demand.toFixed(1)} units`,
+    method: 'Forecast + safety stock',
+  };
+}
 
 function explainRecommendation(item: RecommendationItem, horizonDays: number) {
   const target = item.current_stock + item.required_quantity;
@@ -177,6 +218,7 @@ export default function AIShoppingScreen() {
               const score = priorityScore(item);
               const high = score >= 80;
               const open = expanded === item.product_id;
+              const forecast = forecastMeta(item);
 
               return (
                 <View key={item.product_id} style={styles.productCard}>
@@ -195,8 +237,43 @@ export default function AIShoppingScreen() {
 
                   <View style={styles.statsRow}>
                     <PlanStat label="Current" value={item.current_stock.toString()} />
-                    <PlanStat label="Demand" value={item.forecast_demand.toFixed(1)} />
+                    <PlanStat
+                      label="Forecast"
+                      value={forecast.forecast}
+                    />
                     <PlanStat label="Safety" value={item.safety_stock.toString()} />
+                  </View>
+                  <View style={styles.methodCard}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.methodLabel}>
+                        PLANNING METHOD
+                      </Text>
+                      <Text style={styles.methodValue}>
+                        {forecast.method}
+                      </Text>
+                    </View>
+
+                    {item.history_days != null && (
+                      <View style={styles.methodStat}>
+                        <Text style={styles.methodStatValue}>
+                          {item.history_days}
+                        </Text>
+                        <Text style={styles.methodStatLabel}>
+                          History days
+                        </Text>
+                      </View>
+                    )}
+
+                    {item.validation_mae != null && (
+                      <View style={styles.methodStat}>
+                        <Text style={styles.methodStatValue}>
+                          {item.validation_mae.toFixed(2)}
+                        </Text>
+                        <Text style={styles.methodStatLabel}>
+                          MAE
+                        </Text>
+                      </View>
+                    )}
                   </View>
 
                   <View style={styles.buyBox}>
@@ -328,4 +405,40 @@ const styles = StyleSheet.create({
   emptyCard: { minHeight: 180, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: KadaiColors.border, borderRadius: KadaiRadius.large, alignItems: 'center', justifyContent: 'center', padding: 20 },
   emptyTitle: { fontSize: 16, fontWeight: '900', color: KadaiColors.text, marginTop: 9 },
   emptyText: { fontSize: 12.5, color: KadaiColors.text2, textAlign: 'center', lineHeight: 18, marginTop: 4 },
+  methodCard: {
+    marginTop: 10,
+    borderRadius: 12,
+    backgroundColor: '#F7F9F7',
+    borderWidth: 1,
+    borderColor: KadaiColors.border,
+    padding: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  methodLabel: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: KadaiColors.muted,
+    letterSpacing: 0.7,
+  },
+  methodValue: {
+    marginTop: 3,
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: KadaiColors.primary,
+  },
+  methodStat: {
+    alignItems: 'flex-end',
+  },
+  methodStatValue: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: KadaiColors.text,
+  },
+  methodStatLabel: {
+    marginTop: 2,
+    fontSize: 8.5,
+    color: KadaiColors.muted,
+  },
 });
