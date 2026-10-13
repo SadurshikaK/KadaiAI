@@ -19,6 +19,12 @@ export const KadaiColors = {
   redSoft: '#FEF2F2',
   blue: '#2563EB',
   blueSoft: '#EFF6FF',
+  neutral: '#64748B',
+  neutralSoft: '#F1F5F9',
+  teal: '#0D9488',
+  tealSoft: '#F0FDFA',
+  purple: '#7C3AED',
+  purpleSoft: '#F5F3FF',
 } as const;
 
 export const KadaiRadius = {
